@@ -76,6 +76,7 @@ def search_flights(request):
     origin = request.query_params.get('origin', 'NYC')
     destination = request.query_params.get('destination', 'LAX')
     departure_date = request.query_params.get('departureDate')
+    return_date = request.query_params.get('returnDate')
     passengers = request.query_params.get('passengers', '1')
     travel_class = request.query_params.get('class', 'economy')
 
@@ -108,10 +109,14 @@ def search_flights(request):
                 "currency": "USD",
                 "hl": "en",
                 "api_key": serp_api_key,
-                "type": "1",  # 1=one-way
+                "type": "1" if return_date else "2",  # 1=round-trip, 2=one-way
                 "travel_class": class_map.get(travel_class, '1'),
                 "adults": passengers
             }
+
+            # Add return_date for round-trip flights
+            if return_date:
+                params["return_date"] = return_date
 
             # Make API request
             search = GoogleSearch(params)
