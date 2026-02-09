@@ -14,7 +14,8 @@ const RegisterPage = () => {
   const { register } = useAuthStore();
   const { showSuccess, showError } = useToast();
 
-  const [name, setName] = useState('');
+  const [first_name, setFirstName] = useState('');
+  const [last_name, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -31,7 +32,13 @@ const RegisterPage = () => {
     setIsLoading(true);
 
     try {
-      await register({ name, email, password });
+      await register({
+        first_name,
+        last_name,
+        email,
+        password,
+        password_confirm: confirmPassword
+      });
       showSuccess('Registration successful!');
       navigate(ROUTES.DASHBOARD);
     } catch (error: any) {
@@ -60,14 +67,24 @@ const RegisterPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <Input
-            label="Full Name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="John Doe"
-            required
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="First Name"
+              type="text"
+              value={first_name}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="John"
+              required
+            />
+            <Input
+              label="Last Name"
+              type="text"
+              value={last_name}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Doe"
+              required
+            />
+          </div>
 
           <Input
             label="Email address"
