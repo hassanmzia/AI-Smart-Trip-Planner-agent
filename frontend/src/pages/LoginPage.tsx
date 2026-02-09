@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useGuestOnly } from '@/hooks/useAuth';
 import useAuthStore from '@/store/authStore';
 import Button from '@/components/common/Button';
@@ -11,12 +11,21 @@ import { useToast } from '@/hooks/useNotifications';
 const LoginPage = () => {
   useGuestOnly();
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuthStore();
-  const { showSuccess, showError } = useToast();
+  const { showSuccess, showError, showInfo } = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Show message if redirected from a protected page
+  useEffect(() => {
+    const state = location.state as { message?: string; from?: string };
+    if (state?.message) {
+      showInfo(state.message);
+    }
+  }, [location, showInfo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +34,11 @@ const LoginPage = () => {
     try {
       await login({ email, password });
       showSuccess('Login successful!');
-      navigate(ROUTES.DASHBOARD);
+
+      // Redirect back to the page they were trying to access, or to dashboard
+      const state = location.state as { from?: string };
+      const redirectTo = state?.from || ROUTES.DASHBOARD;
+      navigate(redirectTo);
     } catch (error: any) {
       showError(error.message || 'Login failed');
     } finally {

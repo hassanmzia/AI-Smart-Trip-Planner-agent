@@ -1,7 +1,7 @@
 from rest_framework import viewsets, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Avg, Q
 
@@ -128,3 +128,56 @@ class HotelSearchViewSet(viewsets.ModelViewSet):
             search_count=Count('id')
         ).order_by('-search_count')[:10]
         return Response(destinations)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def search_hotels(request):
+    """
+    Simple hotel search endpoint that accepts GET parameters.
+    This is a simplified interface for frontend compatibility.
+    """
+    # Get query parameters
+    destination = request.query_params.get('destination', '')
+    check_in_date = request.query_params.get('checkInDate')
+    check_out_date = request.query_params.get('checkOutDate')
+    guests = request.query_params.get('guests', '1')
+    rooms = request.query_params.get('rooms', '1')
+
+    # Start with active hotels
+    queryset = Hotel.objects.filter(is_active=True)
+
+    # Filter by destination (city or country)
+    if destination:
+        queryset = queryset.filter(
+            Q(city__icontains=destination) |
+            Q(country__icontains=destination) |
+            Q(name__icontains=destination)
+        )
+
+    # Apply additional filters if provided
+    min_rating = request.query_params.get('minRating')
+    if min_rating:
+        queryset = queryset.filter(guest_rating__gte=min_rating)
+
+    max_price = request.query_params.get('maxPrice')
+    if max_price:
+        queryset = queryset.filter(price_range_min__lte=max_price)
+
+    star_rating = request.query_params.get('starRating')
+    if star_rating:
+        queryset = queryset.filter(star_rating__gte=star_rating)
+
+    # Order by rating
+    queryset = queryset.order_by('-guest_rating', '-star_rating')[:20]  # Limit to 20 hotels
+
+    # Serialize results
+    serializer = HotelListSerializer(queryset, many=True)
+
+    return Response({
+        'count': queryset.count(),
+        'total': queryset.count(),
+        'items': serializer.data,
+        'results': serializer.data,
+        'message': f'Found {queryset.count()} hotels in {destination}' if destination else f'Found {queryset.count()} hotels'
+    })

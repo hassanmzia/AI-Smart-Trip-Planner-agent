@@ -30,7 +30,12 @@ export const useRequireAuth = () => {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      navigate(ROUTES.LOGIN, { replace: true });
+      // Show a message to the user (you can use toast here if available)
+      const currentPath = window.location.pathname;
+      navigate(ROUTES.LOGIN, {
+        replace: true,
+        state: { from: currentPath, message: 'Please log in to continue' }
+      });
     }
   }, [isAuthenticated, isLoading, navigate]);
 
