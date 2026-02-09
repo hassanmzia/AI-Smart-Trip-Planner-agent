@@ -13,10 +13,14 @@ export const useNotifications = () => {
   const { notifications, unreadCount, markAsRead, markAllAsRead, removeNotification } =
     useNotificationStore();
 
-  // Fetch notifications
+  // Check if user is authenticated
+  const isAuthenticated = !!localStorage.getItem('auth_token');
+
+  // Fetch notifications - only when authenticated
   const { data: notificationsData, isPending: isLoading } = useQuery({
     queryKey: QUERY_KEYS.NOTIFICATIONS,
     queryFn: () => notificationService.getNotifications(),
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   // Sync with store when data loads
@@ -28,11 +32,12 @@ export const useNotifications = () => {
     }
   }, [notificationsData]);
 
-  // Fetch unread count
+  // Fetch unread count - only when authenticated
   useQuery({
     queryKey: [...QUERY_KEYS.NOTIFICATIONS, 'unread-count'],
     queryFn: notificationService.getUnreadCount,
     refetchInterval: 30000, // Refetch every 30 seconds
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   // Mark as read mutation
