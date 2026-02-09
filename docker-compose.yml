@@ -95,6 +95,12 @@ services:
         condition: service_healthy
     networks:
       - travel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8109/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     restart: unless-stopped
 
   # Celery Worker for async tasks
@@ -111,10 +117,14 @@ services:
       REDIS_URL: "redis://:redis_secure_pass_2026@redis:6384/0"
       CELERY_BROKER_URL: "amqp://travel_mq:mq_secure_pass_2026@rabbitmq:5673/"
     depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-      - backend
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - travel-network
     restart: unless-stopped
@@ -133,10 +143,14 @@ services:
       REDIS_URL: "redis://:redis_secure_pass_2026@redis:6384/0"
       CELERY_BROKER_URL: "amqp://travel_mq:mq_secure_pass_2026@rabbitmq:5673/"
     depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-      - backend
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
     networks:
       - travel-network
     restart: unless-stopped
