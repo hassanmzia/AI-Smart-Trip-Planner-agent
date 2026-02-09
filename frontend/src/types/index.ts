@@ -1,0 +1,434 @@
+// User & Authentication Types
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  phone?: string;
+  role: 'user' | 'admin';
+  preferences?: UserPreferences;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserPreferences {
+  seatPreference?: 'window' | 'aisle' | 'middle';
+  mealPreference?: string;
+  currency: string;
+  language: string;
+  notifications: {
+    email: boolean;
+    sms: boolean;
+    push: boolean;
+  };
+}
+
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface RegisterData {
+  email: string;
+  password: string;
+  name: string;
+  phone?: string;
+}
+
+// Flight Types
+export interface Flight {
+  id: string;
+  airline: string;
+  flightNumber: string;
+  origin: Airport;
+  destination: Airport;
+  departureTime: string;
+  arrivalTime: string;
+  duration: number; // in minutes
+  price: number;
+  currency: string;
+  class: 'economy' | 'premium_economy' | 'business' | 'first';
+  stops: number;
+  availableSeats: number;
+  aircraft?: string;
+  amenities?: string[];
+  goalEvaluation?: GoalEvaluation;
+}
+
+export interface Airport {
+  code: string;
+  name: string;
+  city: string;
+  country: string;
+  timezone: string;
+}
+
+export interface GoalEvaluation {
+  totalUtility: number;
+  budgetConstraintMet: boolean;
+  underBudget: boolean;
+  overBudget: boolean;
+  budgetDifference: number;
+  priceScore: number;
+  durationScore: number;
+  stopsScore: number;
+  timeScore: number;
+  recommendation: 'excellent' | 'good' | 'fair' | 'poor';
+}
+
+export interface FlightSearchParams {
+  origin: string;
+  destination: string;
+  departureDate: string;
+  returnDate?: string;
+  passengers: number;
+  class: string;
+  maxBudget?: number;
+  goals?: {
+    minPrice?: boolean;
+    minDuration?: boolean;
+    preferredDepartureTime?: string;
+  };
+}
+
+export interface FlightFilters {
+  priceRange: [number, number];
+  stops: number[];
+  airlines: string[];
+  departureTimeRange: [number, number]; // hours 0-24
+  arrivalTimeRange: [number, number];
+  duration: [number, number]; // minutes
+}
+
+// Hotel Types
+export interface Hotel {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  rating: number;
+  stars: number;
+  pricePerNight: number;
+  currency: string;
+  images: string[];
+  amenities: string[];
+  roomTypes: RoomType[];
+  distanceFromCenter: number; // in km
+  utilityScore?: UtilityScore;
+  reviews?: HotelReview[];
+}
+
+export interface RoomType {
+  id: string;
+  name: string;
+  description: string;
+  capacity: number;
+  pricePerNight: number;
+  available: boolean;
+  amenities: string[];
+}
+
+export interface UtilityScore {
+  totalScore: number;
+  priceValue: number;
+  locationScore: number;
+  ratingScore: number;
+  amenitiesScore: number;
+  recommendation: 'excellent' | 'good' | 'fair' | 'poor';
+}
+
+export interface HotelReview {
+  id: string;
+  userId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+export interface HotelSearchParams {
+  destination: string;
+  checkInDate: string;
+  checkOutDate: string;
+  guests: number;
+  rooms: number;
+  maxBudget?: number;
+  minRating?: number;
+  amenities?: string[];
+}
+
+export interface HotelFilters {
+  priceRange: [number, number];
+  stars: number[];
+  rating: number;
+  amenities: string[];
+  distanceFromCenter: number;
+}
+
+// Booking Types
+export interface Booking {
+  id: string;
+  userId: string;
+  type: 'flight' | 'hotel' | 'package';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  flightDetails?: FlightBooking;
+  hotelDetails?: HotelBooking;
+  totalAmount: number;
+  currency: string;
+  paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
+  paymentMethod?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlightBooking {
+  flight: Flight;
+  passengers: Passenger[];
+  seatSelections?: SeatSelection[];
+  specialRequests?: string;
+}
+
+export interface HotelBooking {
+  hotel: Hotel;
+  roomType: RoomType;
+  checkInDate: string;
+  checkOutDate: string;
+  guests: number;
+  specialRequests?: string;
+}
+
+export interface Passenger {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  passportNumber?: string;
+  nationality?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface SeatSelection {
+  passengerId: string;
+  seatNumber: string;
+  price?: number;
+}
+
+// Payment Types
+export interface PaymentIntent {
+  id: string;
+  clientSecret: string;
+  amount: number;
+  currency: string;
+  status: string;
+}
+
+export interface PaymentMethod {
+  id: string;
+  type: 'card' | 'paypal' | 'bank_transfer';
+  last4?: string;
+  brand?: string;
+  expiryMonth?: number;
+  expiryYear?: number;
+}
+
+// Itinerary Types
+export interface Itinerary {
+  id: string;
+  userId: string;
+  name: string;
+  destination: string;
+  startDate: string;
+  endDate: string;
+  bookings: Booking[];
+  activities: Activity[];
+  notes?: string;
+  status: 'draft' | 'confirmed' | 'completed';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Activity {
+  id: string;
+  name: string;
+  description: string;
+  date: string;
+  time?: string;
+  location: string;
+  price?: number;
+  currency?: string;
+  bookingUrl?: string;
+}
+
+// Price Alert Types
+export interface PriceAlert {
+  id: string;
+  userId: string;
+  type: 'flight' | 'hotel';
+  searchParams: FlightSearchParams | HotelSearchParams;
+  targetPrice: number;
+  currentPrice?: number;
+  status: 'active' | 'triggered' | 'expired';
+  createdAt: string;
+  expiresAt?: string;
+}
+
+// AI Agent Types
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  metadata?: {
+    flightResults?: Flight[];
+    hotelResults?: Hotel[];
+    suggestions?: string[];
+  };
+}
+
+export interface AgentContext {
+  sessionId: string;
+  userGoals?: string[];
+  budget?: number;
+  preferences?: Record<string, any>;
+}
+
+// Notification Types
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'price_alert' | 'booking_confirmation' | 'payment_status' | 'trip_reminder' | 'system';
+  title: string;
+  message: string;
+  read: boolean;
+  data?: Record<string, any>;
+  createdAt: string;
+}
+
+// Analytics Types (for Admin Dashboard)
+export interface AnalyticsSummary {
+  totalBookings: number;
+  totalRevenue: number;
+  activeUsers: number;
+  averageBookingValue: number;
+  bookingsByType: Record<string, number>;
+  revenueByMonth: Array<{ month: string; revenue: number }>;
+  topDestinations: Array<{ destination: string; count: number }>;
+  conversionRate: number;
+}
+
+// API Response Types
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  errors?: Record<string, string[]>;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// WebSocket Types
+export interface WebSocketMessage {
+  type: 'notification' | 'price_update' | 'booking_update' | 'chat_message';
+  payload: any;
+  timestamp: string;
+}
+
+// Weather Types
+export interface WeatherData {
+  location: string;
+  temperature: number;
+  condition: string;
+  humidity: number;
+  windSpeed: number;
+  forecast: Array<{
+    date: string;
+    high: number;
+    low: number;
+    condition: string;
+  }>;
+}
+
+// Error Types
+export interface ApiError {
+  message: string;
+  code?: string;
+  status?: number;
+  errors?: Record<string, string[]>;
+}
+
+// Form Types
+export interface SearchFormData {
+  origin?: string;
+  destination?: string;
+  departureDate?: string;
+  returnDate?: string;
+  checkInDate?: string;
+  checkOutDate?: string;
+  passengers?: number;
+  guests?: number;
+  rooms?: number;
+  class?: string;
+  maxBudget?: number;
+}
+
+// Store Types
+export interface AuthState {
+  user: User | null;
+  tokens: AuthTokens | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  login: (credentials: LoginCredentials) => Promise<void>;
+  register: (data: RegisterData) => Promise<void>;
+  logout: () => void;
+  refreshToken: () => Promise<void>;
+  updateUser: (data: Partial<User>) => Promise<void>;
+}
+
+export interface SearchState {
+  flightSearchParams: FlightSearchParams | null;
+  hotelSearchParams: HotelSearchParams | null;
+  flightResults: Flight[];
+  hotelResults: Hotel[];
+  isSearching: boolean;
+  searchError: string | null;
+  setFlightSearchParams: (params: FlightSearchParams) => void;
+  setHotelSearchParams: (params: HotelSearchParams) => void;
+  clearSearch: () => void;
+}
+
+export interface BookingState {
+  currentBooking: Partial<Booking> | null;
+  bookings: Booking[];
+  isLoading: boolean;
+  error: string | null;
+  createBooking: (booking: Partial<Booking>) => Promise<void>;
+  updateBooking: (id: string, data: Partial<Booking>) => Promise<void>;
+  cancelBooking: (id: string) => Promise<void>;
+  fetchBookings: () => Promise<void>;
+}
+
+export interface NotificationState {
+  notifications: Notification[];
+  unreadCount: number;
+  addNotification: (notification: Notification) => void;
+  markAsRead: (id: string) => void;
+  markAllAsRead: () => void;
+  removeNotification: (id: string) => void;
+}

@@ -1,0 +1,454 @@
+"""
+Multi-Agent AI System for Travel Planning
+Uses LangGraph for agent orchestration
+Implements Flight Agent, Hotel Agent, Manager Agent, Goal-Based Agent, and Utility-Based Agent
+"""
+from typing import Dict, Any, List, Optional, TypedDict, Annotated
+from langchain_openai import ChatOpenAI
+from langchain.tools import Tool
+from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langgraph.graph import StateGraph, END
+import operator
+import logging
+from django.conf import settings
+
+from .agent_tools import (
+    FlightSearchTool,
+    HotelSearchTool,
+    GoalBasedEvaluator,
+    UtilityBasedEvaluator,
+    WeatherTool
+)
+
+logger = logging.getLogger(__name__)
+
+
+# State definition for LangGraph
+class TravelAgentState(TypedDict):
+    """State shared across all agents in the graph"""
+    messages: Annotated[List, operator.add]
+    user_query: str
+    origin: Optional[str]
+    destination: Optional[str]
+    departure_date: Optional[str]
+    return_date: Optional[str]
+    passengers: int
+    budget: Optional[float]
+    flight_results: Optional[Dict]
+    hotel_results: Optional[Dict]
+    goal_evaluation: Optional[Dict]
+    utility_evaluation: Optional[Dict]
+    final_recommendation: Optional[Dict]
+    current_agent: str
+    error: Optional[str]
+
+
+class FlightAgent:
+    """
+    Flight search agent - searches for flights using SerpAPI
+    Based on notebook implementation
+    """
+
+    def __init__(self, model: ChatOpenAI):
+        self.model = model
+        self.tool = FlightSearchTool()
+
+        self.system_prompt = """
+You are a Travel Assistant Agent responsible for searching flight details between origin and destination locations.
+
+Extract the following from the user query:
+- origin: airport code or city (e.g., 'CDG', 'Paris')
+- destination: airport code or city (e.g., 'BER', 'Berlin')
+- date: departure date in YYYY-MM-DD format
+- trip_type: 1=Round trip, 2=One way, 3=Multi-city
+- return_date: for round trips
+- passengers: number of travelers
+
+Use the search_flights tool to find flight options.
+Return flight details in a structured format.
+"""
+
+    def execute(self, state: TravelAgentState) -> TravelAgentState:
+        """Execute flight search"""
+        try:
+            logger.info(f"FlightAgent executing for: {state['user_query']}")
+
+            # Search for flights
+            flight_results = self.tool.search_flights(
+                origin=state.get('origin', 'CDG'),
+                destination=state.get('destination', 'BER'),
+                date=state.get('departure_date', '2025-10-10'),
+                trip_type=2 if not state.get('return_date') else 1,
+                return_date=state.get('return_date'),
+                passengers=state.get('passengers', 1)
+            )
+
+            state['flight_results'] = flight_results
+            state['current_agent'] = 'hotel'
+            state['messages'].append(AIMessage(content=f"Found {len(flight_results.get('flights', []))} flight options"))
+
+            return state
+
+        except Exception as e:
+            logger.error(f"FlightAgent error: {str(e)}")
+            state['error'] = str(e)
+            state['current_agent'] = 'error'
+            return state
+
+
+class HotelAgent:
+    """
+    Hotel search agent - searches for hotels using SerpAPI
+    Based on notebook implementation
+    """
+
+    def __init__(self, model: ChatOpenAI):
+        self.model = model
+        self.tool = HotelSearchTool()
+
+        self.system_prompt = """
+You are a Travel Assistant Agent responsible for finding hotel accommodations.
+
+Extract the following from the user query or context:
+- location: destination city
+- check_in_date: arrival date
+- check_out_date: departure date
+- adults: number of adults
+- star_rating: filter by stars (1-5)
+
+Use the search_hotels tool to find accommodation options.
+Focus on hotels near the destination airport or city center.
+"""
+
+    def execute(self, state: TravelAgentState) -> TravelAgentState:
+        """Execute hotel search"""
+        try:
+            logger.info(f"HotelAgent executing for destination: {state.get('destination')}")
+
+            # Search for hotels
+            hotel_results = self.tool.search_hotels(
+                location=state.get('destination', 'Berlin'),
+                check_in_date=state.get('departure_date', '2025-10-10'),
+                check_out_date=state.get('return_date', '2025-10-12'),
+                adults=state.get('passengers', 2)
+            )
+
+            state['hotel_results'] = hotel_results
+            state['current_agent'] = 'goal_evaluator'
+            state['messages'].append(AIMessage(content=f"Found {len(hotel_results.get('hotels', []))} hotel options"))
+
+            return state
+
+        except Exception as e:
+            logger.error(f"HotelAgent error: {str(e)}")
+            state['error'] = str(e)
+            state['current_agent'] = 'error'
+            return state
+
+
+class GoalBasedAgent:
+    """
+    Goal-based agent for evaluating flights against budget goals
+    Implements penalty/reward scoring from notebook
+    """
+
+    def __init__(self, model: ChatOpenAI):
+        self.model = model
+        self.evaluator = GoalBasedEvaluator()
+
+        self.system_prompt = """
+You are a Goal Checker Agent that evaluates flight options based on budget constraints.
+
+Your task:
+1. Compare each flight's price against the budget goal
+2. Calculate scores with penalty for over-budget flights
+3. Identify the cheapest and most expensive options
+4. Provide clear recommendations
+
+Score calculation:
+- Within budget: positive score based on savings
+- Over budget: negative penalty score
+"""
+
+    def execute(self, state: TravelAgentState) -> TravelAgentState:
+        """Execute goal-based evaluation"""
+        try:
+            logger.info("GoalBasedAgent executing")
+
+            flights = state.get('flight_results', {}).get('flights', [])
+            budget = state.get('budget', 200.0)
+
+            if not flights:
+                state['goal_evaluation'] = {"error": "No flights to evaluate"}
+                state['current_agent'] = 'utility_evaluator'
+                return state
+
+            # Find best and worst flights and evaluate
+            evaluation = self.evaluator.find_best_and_worst(
+                flights=flights,
+                budget_goal=budget,
+                penalty_factor=0.1
+            )
+
+            state['goal_evaluation'] = evaluation
+            state['current_agent'] = 'utility_evaluator'
+            state['messages'].append(AIMessage(content="Completed budget evaluation"))
+
+            return state
+
+        except Exception as e:
+            logger.error(f"GoalBasedAgent error: {str(e)}")
+            state['error'] = str(e)
+            state['current_agent'] = 'error'
+            return state
+
+
+class UtilityBasedAgent:
+    """
+    Utility-based agent for evaluating hotels based on multiple factors
+    Implements utility scoring from notebook (price + star rating)
+    """
+
+    def __init__(self, model: ChatOpenAI):
+        self.model = model
+        self.evaluator = UtilityBasedEvaluator()
+
+        self.system_prompt = """
+You are a Utility Evaluation Agent that ranks hotels based on multiple factors.
+
+Evaluation criteria:
+1. Price utility (range: -40 to +40)
+   - < $120: +40 (excellent value)
+   - $120-149: +20 (good)
+   - $150-179: 0 (moderate)
+   - $180-249: -20 (expensive)
+   - >= $250: -40 (very expensive)
+
+2. Star rating utility (range: -40 to +40)
+   - 5 stars: +40 (luxury)
+   - 4 stars: +20 (upscale)
+   - 3 stars: 0 (standard)
+   - 2 stars: -20 (budget)
+   - 1 star: -40 (basic)
+
+Combine scores and rank hotels by total utility.
+"""
+
+    def execute(self, state: TravelAgentState) -> TravelAgentState:
+        """Execute utility-based evaluation"""
+        try:
+            logger.info("UtilityBasedAgent executing")
+
+            hotels = state.get('hotel_results', {}).get('hotels', [])
+
+            if not hotels:
+                state['utility_evaluation'] = {"error": "No hotels to evaluate"}
+                state['current_agent'] = 'manager'
+                return state
+
+            # Rank hotels by utility
+            ranked_hotels = self.evaluator.rank_hotels(hotels)
+
+            state['utility_evaluation'] = {
+                "ranked_hotels": ranked_hotels,
+                "top_recommendation": ranked_hotels[0] if ranked_hotels else None,
+                "total_evaluated": len(ranked_hotels)
+            }
+
+            state['current_agent'] = 'manager'
+            state['messages'].append(AIMessage(content=f"Ranked {len(ranked_hotels)} hotels by utility"))
+
+            return state
+
+        except Exception as e:
+            logger.error(f"UtilityBasedAgent error: {str(e)}")
+            state['error'] = str(e)
+            state['current_agent'] = 'error'
+            return state
+
+
+class ManagerAgent:
+    """
+    Manager agent that orchestrates the workflow and compiles final recommendations
+    """
+
+    def __init__(self, model: ChatOpenAI):
+        self.model = model
+
+        self.system_prompt = """
+You are the Manager Agent coordinating travel planning.
+
+Your responsibilities:
+1. Compile results from all agents
+2. Create comprehensive travel recommendations
+3. Present options clearly with pros/cons
+4. Consider budget, quality, and value
+5. Provide actionable next steps
+"""
+
+    def execute(self, state: TravelAgentState) -> TravelAgentState:
+        """Compile final recommendations"""
+        try:
+            logger.info("ManagerAgent compiling final recommendations")
+
+            # Extract all results
+            flights = state.get('flight_results', {}).get('flights', [])
+            hotels = state.get('hotel_results', {}).get('hotels', [])
+            goal_eval = state.get('goal_evaluation', {})
+            utility_eval = state.get('utility_evaluation', {})
+
+            # Compile final recommendation
+            final_recommendation = {
+                "summary": {
+                    "flights_found": len(flights),
+                    "hotels_found": len(hotels),
+                    "budget": state.get('budget', 'Not specified')
+                },
+                "recommended_flight": goal_eval.get('cheapest flight', {}).get('flight') if goal_eval else None,
+                "alternative_flight": goal_eval.get('most expensive flight', {}).get('flight') if goal_eval else None,
+                "recommended_hotel": utility_eval.get('top_recommendation') if utility_eval else None,
+                "top_5_hotels": utility_eval.get('ranked_hotels', [])[:5] if utility_eval else [],
+                "budget_analysis": goal_eval,
+                "hotel_rankings": utility_eval,
+                "total_estimated_cost": self._calculate_total_cost(goal_eval, utility_eval)
+            }
+
+            state['final_recommendation'] = final_recommendation
+            state['current_agent'] = 'end'
+            state['messages'].append(AIMessage(content="Travel planning complete!"))
+
+            return state
+
+        except Exception as e:
+            logger.error(f"ManagerAgent error: {str(e)}")
+            state['error'] = str(e)
+            state['current_agent'] = 'error'
+            return state
+
+    def _calculate_total_cost(self, goal_eval: Dict, utility_eval: Dict) -> Optional[float]:
+        """Calculate total estimated trip cost"""
+        try:
+            flight_price = goal_eval.get('cheapest flight', {}).get('price', 0)
+            hotel = utility_eval.get('top_recommendation', {})
+            hotel_price = hotel.get('price', 0) if hotel else 0
+
+            return round(flight_price + hotel_price, 2)
+        except:
+            return None
+
+
+class MultiAgentTravelSystem:
+    """
+    Main multi-agent system using LangGraph for orchestration
+    """
+
+    def __init__(self):
+        """Initialize the multi-agent system"""
+        self.model = ChatOpenAI(
+            model=settings.AGENT_CONFIG.get('MODEL', 'gpt-4o-mini'),
+            temperature=settings.AGENT_CONFIG.get('TEMPERATURE', 0.7),
+            api_key=settings.OPENAI_API_KEY
+        )
+
+        # Initialize agents
+        self.flight_agent = FlightAgent(self.model)
+        self.hotel_agent = HotelAgent(self.model)
+        self.goal_agent = GoalBasedAgent(self.model)
+        self.utility_agent = UtilityBasedAgent(self.model)
+        self.manager_agent = ManagerAgent(self.model)
+
+        # Build the graph
+        self.graph = self._build_graph()
+
+    def _build_graph(self) -> StateGraph:
+        """Build the LangGraph workflow"""
+        workflow = StateGraph(TravelAgentState)
+
+        # Add nodes
+        workflow.add_node("flight", self.flight_agent.execute)
+        workflow.add_node("hotel", self.hotel_agent.execute)
+        workflow.add_node("goal_evaluator", self.goal_agent.execute)
+        workflow.add_node("utility_evaluator", self.utility_agent.execute)
+        workflow.add_node("manager", self.manager_agent.execute)
+
+        # Define edges
+        workflow.set_entry_point("flight")
+        workflow.add_edge("flight", "hotel")
+        workflow.add_edge("hotel", "goal_evaluator")
+        workflow.add_edge("goal_evaluator", "utility_evaluator")
+        workflow.add_edge("utility_evaluator", "manager")
+        workflow.add_edge("manager", END)
+
+        return workflow.compile()
+
+    def run(self, user_query: str, **kwargs) -> Dict[str, Any]:
+        """
+        Run the multi-agent system
+
+        Args:
+            user_query: User's travel request
+            **kwargs: Additional parameters (origin, destination, dates, budget, etc.)
+
+        Returns:
+            Dict containing final recommendations and all intermediate results
+        """
+        try:
+            logger.info(f"Starting multi-agent travel planning: {user_query}")
+
+            # Initialize state
+            initial_state = {
+                "messages": [HumanMessage(content=user_query)],
+                "user_query": user_query,
+                "origin": kwargs.get('origin'),
+                "destination": kwargs.get('destination'),
+                "departure_date": kwargs.get('departure_date'),
+                "return_date": kwargs.get('return_date'),
+                "passengers": kwargs.get('passengers', 1),
+                "budget": kwargs.get('budget'),
+                "flight_results": None,
+                "hotel_results": None,
+                "goal_evaluation": None,
+                "utility_evaluation": None,
+                "final_recommendation": None,
+                "current_agent": "flight",
+                "error": None
+            }
+
+            # Run the graph
+            final_state = self.graph.invoke(initial_state)
+
+            logger.info("Multi-agent travel planning completed successfully")
+
+            return {
+                "success": True,
+                "user_query": user_query,
+                "parameters": kwargs,
+                "flights": final_state.get('flight_results'),
+                "hotels": final_state.get('hotel_results'),
+                "goal_evaluation": final_state.get('goal_evaluation'),
+                "utility_evaluation": final_state.get('utility_evaluation'),
+                "recommendation": final_state.get('final_recommendation'),
+                "messages": [msg.content for msg in final_state.get('messages', [])]
+            }
+
+        except Exception as e:
+            logger.error(f"Multi-agent system error: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "user_query": user_query
+            }
+
+
+# Singleton instance
+_travel_system = None
+
+
+def get_travel_system() -> MultiAgentTravelSystem:
+    """Get or create the singleton travel system instance"""
+    global _travel_system
+    if _travel_system is None:
+        _travel_system = MultiAgentTravelSystem()
+    return _travel_system
