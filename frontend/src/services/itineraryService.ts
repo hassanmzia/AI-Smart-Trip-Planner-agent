@@ -66,10 +66,10 @@ export const createItinerary = async (data: {
 
   console.log('Create itinerary response:', response);
 
-  const result = handleApiResponse(response);
+  const result = handleApiResponse<Itinerary>(response);
   console.log('Create itinerary result:', result);
 
-  return result;
+  return result as Itinerary;
 };
 
 /**
