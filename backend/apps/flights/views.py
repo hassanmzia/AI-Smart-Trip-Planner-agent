@@ -193,6 +193,10 @@ def search_flights(request):
             search = GoogleSearch(params)
             results = search.get_dict()
 
+            logger.info(f"SERP API response keys: {results.keys()}")
+            if 'error' in results:
+                logger.error(f"SERP API returned error: {results.get('error')}")
+
             # Transform SERP API response to our Flight format
             if 'best_flights' in results or 'other_flights' in results:
                 flights = []
@@ -221,6 +225,8 @@ def search_flights(request):
                         'results': flights,
                         'message': f'Found {len(flights)} real flights from {origin} to {destination} on {departure_date}'
                     })
+            else:
+                logger.warning(f"SERP API response has no 'best_flights' or 'other_flights'. Keys: {results.keys()}")
 
         except ImportError:
             logger.warning("serpapi package not installed. Using mock data.")
