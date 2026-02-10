@@ -571,12 +571,26 @@ class UtilityBasedEvaluator:
         """
         Rank hotels by combined utility score
 
+        Filters out hotels with $0 prices (no pricing data available from API)
+
         Returns:
             List of hotels sorted by utility score (highest first)
         """
+        # Filter out hotels with no pricing data ($0 price)
+        # SerpAPI sometimes doesn't provide pricing for certain hotels/dates
+        hotels_with_prices = [
+            hotel for hotel in hotels
+            if hotel.get('price_per_night', 0) > 0 or hotel.get('price', 0) > 0
+        ]
+
+        # If no hotels have prices, return empty list rather than showing $0 hotels
+        if not hotels_with_prices:
+            print("⚠️ Warning: No hotels with pricing data available")
+            return []
+
         evaluated_hotels = [
             UtilityBasedEvaluator.evaluate_hotel_comprehensive(hotel)
-            for hotel in hotels
+            for hotel in hotels_with_prices
         ]
 
         return sorted(
