@@ -505,10 +505,16 @@ class UtilityBasedEvaluator:
         combined_score = price_eval['price_utility_score'] + rating_eval['rating_utility_score']
 
         return {
-            "hotel_name": hotel.get('hotel_name', hotel.get('name', 'Unknown')),
-            **price_eval,
-            **rating_eval,
-            "combined_utility_score": combined_score,
+            # Use field names that match frontend expectations
+            "name": hotel.get('hotel_name', hotel.get('name', 'Unknown')),
+            "hotel_name": hotel.get('hotel_name', hotel.get('name', 'Unknown')),  # Keep for backward compatibility
+            "price": price_eval['price'],
+            "price_utility_score": price_eval['price_utility_score'],
+            "stars": rating_eval['star_rating'],
+            "star_rating": rating_eval['star_rating'],  # Keep for backward compatibility
+            "rating_utility_score": rating_eval['rating_utility_score'],
+            "utility_score": combined_score,  # Frontend expects this name
+            "combined_utility_score": combined_score,  # Keep for backward compatibility
             "recommendation": UtilityBasedEvaluator._get_recommendation(combined_score)
         }
 
