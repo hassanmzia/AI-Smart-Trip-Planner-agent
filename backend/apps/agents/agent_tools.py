@@ -173,6 +173,7 @@ class FlightSearchTool:
 
             return {
                 "airline": flight.get('airline', 'Unknown'),
+                "airline_logo": flight.get('airline_logo', ''),
                 "flight_number": flight.get('flight_number', ''),
                 "departure_airport": flight.get('departure_airport', {}).get('name', ''),
                 "departure_airport_code": flight.get('departure_airport', {}).get('id', ''),
@@ -182,9 +183,11 @@ class FlightSearchTool:
                 "arrival_time": flight.get('arrival_airport', {}).get('time', ''),
                 "duration": flight_data.get('total_duration', 0),
                 "stops": len(flights) - 1,
+                "layovers": flight_data.get('layovers', []),
                 "aircraft": flight.get('airplane', 'Unknown'),
                 "travel_class": flight.get('travel_class', 'Economy'),
                 "legroom": flight.get('legroom', 'Standard'),
+                "extensions": flight.get('extensions', []),
                 "price": price,
                 "currency": "USD",
                 "carbon_emissions": flight_data.get('carbon_emissions', {}),

@@ -185,39 +185,255 @@ const AIPlannerPage = () => {
             </CardContent>
           </Card>
 
-          {/* Recommended Flight */}
+          {/* Recommended Flight - Enhanced */}
           {result.recommendation?.recommended_flight && (
             <Card>
               <CardHeader>
-                <CardTitle>💎 Best Flight (Within Budget)</CardTitle>
+                <CardTitle>✈️ Recommended Flight</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <p><strong>Airline:</strong> {result.recommendation.recommended_flight.airline}</p>
-                  <p><strong>Price:</strong> ${result.recommendation.recommended_flight.price}</p>
-                  <p><strong>Departure:</strong> {result.recommendation.recommended_flight.departure_time}</p>
-                  <p><strong>Arrival:</strong> {result.recommendation.recommended_flight.arrival_time}</p>
-                  <p><strong>Duration:</strong> {result.recommendation.recommended_flight.total_duration} min</p>
+                <div className="space-y-4">
+                  {/* Airline and Price Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {result.recommendation.recommended_flight.airline_logo && (
+                        <img
+                          src={result.recommendation.recommended_flight.airline_logo}
+                          alt={result.recommendation.recommended_flight.airline}
+                          className="h-8 w-8 object-contain"
+                        />
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-lg">
+                          {result.recommendation.recommended_flight.airline}
+                        </h3>
+                        {result.recommendation.recommended_flight.flight_number && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Flight {result.recommendation.recommended_flight.flight_number}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                        ${result.recommendation.recommended_flight.price}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">per person</p>
+                    </div>
+                  </div>
+
+                  {/* Flight Route */}
+                  <div className="grid grid-cols-3 gap-4 items-center py-4 border-t border-b">
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Departure</p>
+                      <p className="text-lg font-semibold">
+                        {result.recommendation.recommended_flight.departure_time?.split(' ')[1] || result.recommendation.recommended_flight.departure_time}
+                      </p>
+                      <p className="text-sm font-medium">
+                        {result.recommendation.recommended_flight.departure_airport_code}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {result.recommendation.recommended_flight.departure_airport}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {result.recommendation.recommended_flight.duration
+                          ? `${Math.floor(result.recommendation.recommended_flight.duration / 60)}h ${result.recommendation.recommended_flight.duration % 60}m`
+                          : 'N/A'}
+                      </p>
+                      <div className="flex items-center justify-center my-2">
+                        <div className="h-px bg-gray-300 dark:bg-gray-600 flex-1"></div>
+                        <span className="mx-2 text-gray-400">✈️</span>
+                        <div className="h-px bg-gray-300 dark:bg-gray-600 flex-1"></div>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {result.recommendation.recommended_flight.stops === 0
+                          ? 'Nonstop'
+                          : `${result.recommendation.recommended_flight.stops} stop${result.recommendation.recommended_flight.stops > 1 ? 's' : ''}`
+                        }
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Arrival</p>
+                      <p className="text-lg font-semibold">
+                        {result.recommendation.recommended_flight.arrival_time?.split(' ')[1] || result.recommendation.recommended_flight.arrival_time}
+                      </p>
+                      <p className="text-sm font-medium">
+                        {result.recommendation.recommended_flight.arrival_airport_code}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        {result.recommendation.recommended_flight.arrival_airport}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Additional Details */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                    {result.recommendation.recommended_flight.aircraft && (
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">Aircraft</p>
+                        <p className="font-medium">{result.recommendation.recommended_flight.aircraft}</p>
+                      </div>
+                    )}
+                    {result.recommendation.recommended_flight.travel_class && (
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">Class</p>
+                        <p className="font-medium">{result.recommendation.recommended_flight.travel_class}</p>
+                      </div>
+                    )}
+                    {result.recommendation.recommended_flight.legroom && (
+                      <div>
+                        <p className="text-gray-600 dark:text-gray-400">Legroom</p>
+                        <p className="font-medium">{result.recommendation.recommended_flight.legroom}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Carbon Emissions */}
+                  {result.recommendation.recommended_flight.carbon_emissions?.this_flight && (
+                    <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+                      <p className="text-sm text-green-800 dark:text-green-200">
+                        🌱 Carbon emissions: {result.recommendation.recommended_flight.carbon_emissions.this_flight} kg CO₂
+                        {result.recommendation.recommended_flight.carbon_emissions.difference_percent && (
+                          <span className="ml-2">
+                            ({result.recommendation.recommended_flight.carbon_emissions.difference_percent > 0 ? '+' : ''}
+                            {result.recommendation.recommended_flight.carbon_emissions.difference_percent}% vs typical)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Top Hotels */}
-          {result.recommendation?.top_5_hotels && result.recommendation.top_5_hotels.length > 0 && (
+          {/* Recommended Hotel - Enhanced */}
+          {result.recommendation?.recommended_hotel && (
             <Card>
               <CardHeader>
-                <CardTitle>🏨 Top 5 Hotels (by Utility Score)</CardTitle>
+                <CardTitle>🏨 Recommended Hotel</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {result.recommendation.top_5_hotels.map((hotel: any, idx: number) => (
-                    <div key={idx} className="border-l-4 border-blue-500 pl-4 py-2">
-                      <h4 className="font-semibold">{hotel.name}</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {'⭐'.repeat(hotel.stars || 3)} | ${hotel.price}/night | 
-                        Utility Score: {hotel.utility_score}
-                      </p>
+                  {/* Hotel Image and Info */}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    {/* Hotel Image */}
+                    {result.recommendation.recommended_hotel.images?.[0] && (
+                      <img
+                        src={result.recommendation.recommended_hotel.images[0]}
+                        alt={result.recommendation.recommended_hotel.name || result.recommendation.recommended_hotel.hotel_name}
+                        className="w-full md:w-64 h-48 object-cover rounded-lg"
+                      />
+                    )}
+
+                    {/* Hotel Details */}
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <h3 className="text-xl font-semibold">
+                          {result.recommendation.recommended_hotel.name || result.recommendation.recommended_hotel.hotel_name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="text-yellow-500">
+                            {'⭐'.repeat(Math.round(result.recommendation.recommended_hotel.stars || result.recommendation.recommended_hotel.star_rating || 0))}
+                          </div>
+                          {result.recommendation.recommended_hotel.guest_rating > 0 && (
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              ({result.recommendation.recommended_hotel.guest_rating} reviews)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
+                        <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                          ${result.recommendation.recommended_hotel.price || result.recommendation.recommended_hotel.price_per_night}
+                          <span className="text-sm font-normal text-gray-600 dark:text-gray-400">/night</span>
+                        </p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Utility Score: {result.recommendation.recommended_hotel.utility_score || result.recommendation.recommended_hotel.combined_utility_score}
+                          {result.recommendation.recommended_hotel.recommendation && (
+                            <span className="ml-2 text-xs">• {result.recommendation.recommended_hotel.recommendation}</span>
+                          )}
+                        </p>
+                      </div>
+
+                      {/* Address */}
+                      {result.recommendation.recommended_hotel.address && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          📍 {result.recommendation.recommended_hotel.address}
+                        </p>
+                      )}
+
+                      {/* Amenities */}
+                      {result.recommendation.recommended_hotel.amenities && result.recommendation.recommended_hotel.amenities.length > 0 && (
+                        <div>
+                          <p className="text-sm font-medium mb-1">Amenities:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {result.recommendation.recommended_hotel.amenities.slice(0, 6).map((amenity: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded"
+                              >
+                                {amenity}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Booking Link */}
+                      {result.recommendation.recommended_hotel.link && (
+                        <a
+                          href={result.recommendation.recommended_hotel.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-sm text-primary-600 dark:text-primary-400 hover:underline"
+                        >
+                          View on booking site →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Alternative Hotels */}
+          {result.recommendation?.top_5_hotels && result.recommendation.top_5_hotels.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🏨 Alternative Hotels</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {result.recommendation.top_5_hotels.slice(1, 5).map((hotel: any, idx: number) => (
+                    <div key={idx} className="flex gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary-500 transition-colors">
+                      {/* Hotel Thumbnail */}
+                      {hotel.images?.[0] && (
+                        <img
+                          src={hotel.images[0]}
+                          alt={hotel.name || hotel.hotel_name}
+                          className="w-24 h-24 object-cover rounded"
+                        />
+                      )}
+
+                      {/* Hotel Info */}
+                      <div className="flex-1">
+                        <h4 className="font-semibold">{hotel.name || hotel.hotel_name}</h4>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          <span className="text-yellow-500">
+                            {'⭐'.repeat(Math.round(hotel.stars || hotel.star_rating || 0))}
+                          </span>
+                          <span className="mx-2">•</span>
+                          <span className="font-medium">${hotel.price || hotel.price_per_night}/night</span>
+                          <span className="mx-2">•</span>
+                          <span>Score: {hotel.utility_score || hotel.combined_utility_score}</span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
