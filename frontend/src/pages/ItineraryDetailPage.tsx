@@ -71,6 +71,7 @@ const ItineraryDetailPage = () => {
         const dataWithUser = {
           ...formData,
           user: user.id, // Add the authenticated user's ID
+          status: 'planned', // Set default status to 'planned'
         };
         const result = await createItinerary(dataWithUser);
         console.log('Itinerary created:', result);
