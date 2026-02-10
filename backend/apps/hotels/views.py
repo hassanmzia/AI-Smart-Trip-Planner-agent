@@ -183,33 +183,69 @@ def search_hotels(request):
                 hotels = []
                 for idx, hotel_data in enumerate(results['properties'][:20]):  # Limit to 20
                     try:
-                        # Extract hotel info
+                        # Extract rating and derive star rating from it
+                        overall_rating = hotel_data.get('overall_rating', 0)
+                        if overall_rating:
+                            # Derive star rating from overall rating (4.0+ = 5 stars, 3.5+ = 4 stars, etc.)
+                            if overall_rating >= 4.5:
+                                star_rating = 5
+                            elif overall_rating >= 4.0:
+                                star_rating = 4
+                            elif overall_rating >= 3.0:
+                                star_rating = 3
+                            else:
+                                star_rating = 2
+                        else:
+                            star_rating = 3  # Default
+
+                        # Extract price
+                        rate_per_night = hotel_data.get('rate_per_night', {})
+                        if isinstance(rate_per_night, dict):
+                            price = float(rate_per_night.get('lowest', 150))
+                        else:
+                            price = 150.0
+
+                        # Extract images
+                        images_data = hotel_data.get('images', [])
+                        image_urls = [img.get('thumbnail', '') for img in images_data[:5] if isinstance(img, dict)]
+                        primary_image = image_urls[0] if image_urls else ''
+
+                        # Extract amenities
+                        amenities_list = hotel_data.get('amenities', [])
+                        if isinstance(amenities_list, list):
+                            amenities = amenities_list[:5]
+                        else:
+                            amenities = []
+
+                        # Build hotel object
                         hotel = {
                             'id': f"serp_{idx}",
                             'name': hotel_data.get('name', 'Unknown Hotel'),
                             'city': destination.split(',')[0].strip() if ',' in destination else destination,
                             'country': 'USA',
-                            'address': hotel_data.get('description', ''),
-                            'star_rating': int(hotel_data.get('hotel_class', 3)),
-                            'star_rating_display': f"{int(hotel_data.get('hotel_class', 3))} Star",
-                            'guest_rating': float(hotel_data.get('overall_rating', 8.0)),
+                            'address': hotel_data.get('link', ''),
+                            'star_rating': star_rating,
+                            'star_rating_display': f"{star_rating} Star",
+                            'guest_rating': float(overall_rating) if overall_rating else 0.0,
                             'review_count': hotel_data.get('reviews', 0),
                             'property_type': hotel_data.get('type', 'hotel'),
-                            'primary_image': hotel_data.get('images', [{}])[0].get('thumbnail', '') if hotel_data.get('images') else '',
-                            'price_range_min': float(hotel_data.get('rate_per_night', {}).get('lowest', 150)),
-                            'price_range_max': float(hotel_data.get('rate_per_night', {}).get('lowest', 150)) * 1.5,
+                            'primary_image': primary_image,
+                            'price_range_min': price,
+                            'price_range_max': price * 1.5,
                             'currency': 'USD',
-                            'amenity_count': len(hotel_data.get('amenities', [])),
-                            'stars': int(hotel_data.get('hotel_class', 3)),
-                            'rating': float(hotel_data.get('overall_rating', 8.0)),
-                            'pricePerNight': float(hotel_data.get('rate_per_night', {}).get('lowest', 150)),
-                            'images': [img.get('thumbnail', '') for img in hotel_data.get('images', [])[:5]],
-                            'amenities': hotel_data.get('amenities', [])[:5],
-                            'distanceFromCenter': 2.5  # SERP API doesn't always provide this
+                            'amenity_count': len(amenities),
+                            'stars': star_rating,
+                            'rating': float(overall_rating) if overall_rating else 0.0,
+                            'pricePerNight': price,
+                            'images': image_urls,
+                            'amenities': amenities,
+                            'distanceFromCenter': 2.5
                         }
                         hotels.append(hotel)
                     except Exception as e:
                         print(f"Error transforming hotel {idx}: {e}")
+                        import traceback
+                        traceback.print_exc()
                         continue
 
                 if hotels:
