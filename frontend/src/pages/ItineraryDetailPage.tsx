@@ -68,7 +68,11 @@ const ItineraryDetailPage = () => {
       if (isNewItinerary) {
         // Create new itinerary
         console.log('Creating new itinerary...');
-        const result = await createItinerary(formData);
+        const dataWithUser = {
+          ...formData,
+          user: user.id, // Add the authenticated user's ID
+        };
+        const result = await createItinerary(dataWithUser);
         console.log('Itinerary created:', result);
         toast.success('Itinerary created successfully!');
       } else if (id) {

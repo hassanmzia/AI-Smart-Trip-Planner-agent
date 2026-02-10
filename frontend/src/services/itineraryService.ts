@@ -54,6 +54,7 @@ export const createItinerary = async (data: {
   destination: string;
   start_date: string;
   end_date: string;
+  user: string;
   description?: string;
   number_of_travelers?: number;
   estimated_budget?: string;
