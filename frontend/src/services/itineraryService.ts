@@ -6,12 +6,36 @@ import type { Itinerary, Activity } from '@/types';
  * Get all itineraries
  */
 export const getItineraries = async (status?: string): Promise<Itinerary[]> => {
-  let url = API_ENDPOINTS.ITINERARY.LIST;
+  let url = `${API_ENDPOINTS.ITINERARY.LIST}/`;
   if (status) {
     url += `?status=${status}`;
   }
   const response = await api.get(url);
-  return handleApiResponse(response);
+  const data = handleApiResponse(response);
+
+  // Debug logging
+  console.log('Itineraries API response:', data);
+  console.log('Is array:', Array.isArray(data));
+  console.log('Has results:', data?.results);
+  console.log('Has items:', data?.items);
+
+  // Handle both paginated and non-paginated responses
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.results)) {
+      return data.results;
+    }
+    if (Array.isArray(data.items)) {
+      return data.items;
+    }
+  }
+
+  // Fallback to empty array if data format is unexpected
+  console.warn('Unexpected itineraries data format:', data);
+  return [];
 };
 
 /**
