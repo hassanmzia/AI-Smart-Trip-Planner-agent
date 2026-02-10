@@ -188,13 +188,13 @@ const HotelBookingPage = () => {
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Check-in</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
-                  {formatDate(bookingDetails.checkInDate, 'MMM DD, YYYY')}
+                  {formatDate(bookingDetails.checkInDate, 'MMM dd, yyyy')}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Check-out</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
-                  {formatDate(bookingDetails.checkOutDate, 'MMM DD, YYYY')}
+                  {formatDate(bookingDetails.checkOutDate, 'MMM dd, yyyy')}
                 </p>
               </div>
             </div>
@@ -646,8 +646,8 @@ const HotelBookingPage = () => {
                   <div className="flex items-center text-gray-600 dark:text-gray-400">
                     <CalendarIcon className="h-4 w-4 mr-2" />
                     <div>
-                      <p>{formatDate(bookingDetails.checkInDate, 'MMM DD, YYYY')}</p>
-                      <p>{formatDate(bookingDetails.checkOutDate, 'MMM DD, YYYY')}</p>
+                      <p>{formatDate(bookingDetails.checkInDate, 'MMM dd, yyyy')}</p>
+                      <p>{formatDate(bookingDetails.checkOutDate, 'MMM dd, yyyy')}</p>
                     </div>
                   </div>
 

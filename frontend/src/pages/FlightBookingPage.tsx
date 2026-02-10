@@ -213,7 +213,7 @@ const FlightBookingPage = () => {
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Date</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
-                  {formatDate(flight.departureTime, 'MMM DD, YYYY')}
+                  {formatDate(flight.departureTime, 'MMM dd, yyyy')}
                 </p>
               </div>
             </div>
@@ -608,7 +608,7 @@ const FlightBookingPage = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center text-gray-600 dark:text-gray-400">
                     <CalendarIcon className="h-4 w-4 mr-2" />
-                    {formatDate(flight.departureTime, 'MMM DD, YYYY')}
+                    {formatDate(flight.departureTime, 'MMM dd, yyyy')}
                   </div>
 
                   <div className="flex items-center text-gray-600 dark:text-gray-400">
