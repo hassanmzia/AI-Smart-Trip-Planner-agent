@@ -174,8 +174,8 @@ def search_flights(request):
             # Build SERP API search parameters
             params = {
                 "engine": "google_flights",
-                "departure_id": origin,
-                "arrival_id": destination,
+                "departure_id": origin.upper(),
+                "arrival_id": destination.upper(),
                 "outbound_date": departure_date,
                 "currency": "USD",
                 "hl": "en",
