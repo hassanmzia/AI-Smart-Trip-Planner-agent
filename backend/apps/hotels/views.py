@@ -201,7 +201,11 @@ def search_hotels(request):
                         # Extract price
                         rate_per_night = hotel_data.get('rate_per_night', {})
                         if isinstance(rate_per_night, dict):
-                            price = float(rate_per_night.get('lowest', 150))
+                            price_str = rate_per_night.get('lowest', '150')
+                            # Remove currency symbols and commas, then convert to float
+                            if isinstance(price_str, str):
+                                price_str = price_str.replace('$', '').replace(',', '').strip()
+                            price = float(price_str) if price_str else 150.0
                         else:
                             price = 150.0
 
