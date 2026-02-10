@@ -201,16 +201,58 @@ def search_hotels(request):
                         else:
                             star_rating = 3  # Default
 
-                        # Extract price
+                        # Extract price with multiple fallbacks
+                        price = 150.0  # Default fallback
+                        price_sources = []
+
+                        # Try rate_per_night first
                         rate_per_night = hotel_data.get('rate_per_night', {})
-                        if isinstance(rate_per_night, dict):
-                            price_str = rate_per_night.get('lowest', '150')
+                        if isinstance(rate_per_night, dict) and rate_per_night.get('lowest'):
+                            price_str = rate_per_night.get('lowest', '')
                             # Remove currency symbols and commas, then convert to float
                             if isinstance(price_str, str):
-                                price_str = price_str.replace('$', '').replace(',', '').strip()
-                            price = float(price_str) if price_str else 150.0
+                                price_str = price_str.replace('$', '').replace(',', '').replace('৳', '').strip()
+                            try:
+                                price = float(price_str) if price_str else price
+                                price_sources.append(f"rate_per_night: {price}")
+                            except (ValueError, TypeError):
+                                pass
+
+                        # Try extracted_price as fallback
+                        if price == 150.0:
+                            extracted_price = hotel_data.get('extracted_price', {})
+                            if isinstance(extracted_price, dict):
+                                # Try different price fields
+                                for key in ['value', 'amount', 'price', 'lowest', 'extracted_lowest']:
+                                    if key in extracted_price:
+                                        try:
+                                            price_val = str(extracted_price[key]).replace('$', '').replace(',', '').replace('৳', '').strip()
+                                            price = float(price_val)
+                                            price_sources.append(f"extracted_price.{key}: {price}")
+                                            break
+                                        except (ValueError, TypeError):
+                                            continue
+
+                        # Try total_rate as another fallback
+                        if price == 150.0:
+                            total_rate = hotel_data.get('total_rate', {})
+                            if isinstance(total_rate, dict):
+                                for key in ['value', 'amount', 'price', 'extracted_value']:
+                                    if key in total_rate:
+                                        try:
+                                            price_val = str(total_rate[key]).replace('$', '').replace(',', '').replace('৳', '').strip()
+                                            # If it's total rate, divide by number of nights (assuming 1 night)
+                                            price = float(price_val)
+                                            price_sources.append(f"total_rate.{key}: {price}")
+                                            break
+                                        except (ValueError, TypeError):
+                                            continue
+
+                        # Log price extraction for debugging
+                        if price == 150.0:
+                            logger.warning(f"Hotel {idx} ({hotel_data.get('name')}): Using default price. Available fields: rate_per_night={rate_per_night}, extracted_price={hotel_data.get('extracted_price')}, total_rate={hotel_data.get('total_rate')}")
                         else:
-                            price = 150.0
+                            logger.info(f"Hotel {idx} ({hotel_data.get('name')}): Price ${price} from {price_sources}")
 
                         # Extract images
                         images_data = hotel_data.get('images', [])
@@ -220,13 +262,13 @@ def search_hotels(request):
                         # Extract amenities
                         amenities_list = hotel_data.get('amenities', [])
                         if isinstance(amenities_list, list):
-                            amenities = amenities_list[:5]
+                            amenities = amenities_list[:10]
                         else:
                             amenities = []
 
                         # Extract additional details
-                        extracted_price = hotel_data.get('extracted_price', {})
-                        total_rate = hotel_data.get('total_rate', {})
+                        extracted_price_data = hotel_data.get('extracted_price', {})
+                        total_rate_data = hotel_data.get('total_rate', {})
                         nearby_places = hotel_data.get('nearby_places', [])
                         essential_info = hotel_data.get('essential_info', [])
 
@@ -276,8 +318,8 @@ def search_hotels(request):
                             'primary_image': primary_image,
                             'price_range_min': price,
                             'price_range_max': price * 1.5,
-                            'extracted_price': extracted_price,
-                            'total_rate': total_rate,
+                            'extracted_price': extracted_price_data,
+                            'total_rate': total_rate_data,
                             'currency': 'USD',
                             'amenity_count': len(amenities),
                             'stars': star_rating,
