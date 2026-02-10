@@ -250,12 +250,21 @@ def search_hotels(request):
                                         'transportations': place.get('transportations', [])
                                     })
 
+                        # Parse city and country from destination
+                        if ',' in destination:
+                            parts = destination.split(',')
+                            city = parts[0].strip()
+                            country = parts[1].strip() if len(parts) > 1 else 'Unknown'
+                        else:
+                            city = destination.strip()
+                            country = 'Unknown'
+
                         # Build hotel object with maximum details
                         hotel = {
                             'id': f"serp_{idx}",
                             'name': hotel_data.get('name', 'Unknown Hotel'),
-                            'city': destination.split(',')[0].strip() if ',' in destination else destination,
-                            'country': 'USA',
+                            'city': city,
+                            'country': country,
                             'address': hotel_data.get('link', ''),
                             'description': description,
                             'star_rating': star_rating,
