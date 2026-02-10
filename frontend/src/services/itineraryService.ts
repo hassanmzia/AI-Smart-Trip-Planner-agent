@@ -12,8 +12,30 @@ export const getItineraries = async (status?: string): Promise<Itinerary[]> => {
   }
   const response = await api.get(url);
   const data = handleApiResponse(response);
+
+  // Debug logging
+  console.log('Itineraries API response:', data);
+  console.log('Is array:', Array.isArray(data));
+  console.log('Has results:', data?.results);
+  console.log('Has items:', data?.items);
+
   // Handle both paginated and non-paginated responses
-  return Array.isArray(data) ? data : (data.results || data.items || []);
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.results)) {
+      return data.results;
+    }
+    if (Array.isArray(data.items)) {
+      return data.items;
+    }
+  }
+
+  // Fallback to empty array if data format is unexpected
+  console.warn('Unexpected itineraries data format:', data);
+  return [];
 };
 
 /**
