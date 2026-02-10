@@ -199,6 +199,8 @@ def search_flights(request):
                         flights.append(transform_serp_flight(flight_data, idx, departure_date))
                     except Exception as e:
                         print(f"Error transforming flight {idx}: {e}")
+                        import traceback
+                        traceback.print_exc()
                         continue
 
                 if flights:
