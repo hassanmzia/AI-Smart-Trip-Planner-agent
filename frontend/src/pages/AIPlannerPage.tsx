@@ -466,6 +466,24 @@ const AIPlannerPage = () => {
             </Card>
           )}
 
+          {/* No hotels available message */}
+          {result.recommendation && !result.recommendation.recommended_hotel && result.recommendation.summary?.hotels_found > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🏨 Hotel Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-6 text-gray-600 dark:text-gray-400">
+                  <p className="text-lg">⚠️ No hotels with pricing available</p>
+                  <p className="mt-2 text-sm">
+                    The hotels in this area don't have current pricing data available.
+                    Please try searching for hotels directly or try different dates.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Alternative Hotels */}
           {result.recommendation?.top_5_hotels && result.recommendation.top_5_hotels.length > 1 && (
             <Card>
