@@ -51,17 +51,35 @@ class HotelListSerializer(serializers.ModelSerializer):
     star_rating_display = serializers.CharField(source='get_star_rating_display', read_only=True)
     amenity_count = serializers.SerializerMethodField()
 
+    # Frontend compatibility fields
+    stars = serializers.IntegerField(source='star_rating', read_only=True)
+    rating = serializers.DecimalField(source='guest_rating', max_digits=3, decimal_places=2, read_only=True)
+    images = serializers.ListField(source='images', read_only=True)
+    amenities = serializers.SerializerMethodField()
+    distanceFromCenter = serializers.SerializerMethodField()
+
     class Meta:
         model = Hotel
         fields = [
-            'id', 'name', 'city', 'country', 'star_rating', 'star_rating_display',
+            'id', 'name', 'city', 'country', 'address', 'star_rating', 'star_rating_display',
             'guest_rating', 'review_count', 'property_type', 'primary_image',
-            'price_range_min', 'price_range_max', 'currency', 'amenity_count'
+            'price_range_min', 'price_range_max', 'currency', 'amenity_count',
+            'stars', 'rating', 'images', 'amenities', 'distanceFromCenter'
         ]
 
     def get_amenity_count(self, obj):
         """Get count of amenities."""
         return obj.amenities.count()
+
+    def get_amenities(self, obj):
+        """Get list of amenity names for frontend compatibility."""
+        return list(obj.amenities.values_list('name', flat=True))[:5]  # Limit to 5 for list view
+
+    def get_distanceFromCenter(self, obj):
+        """Get distance from city center (placeholder)."""
+        # This would calculate actual distance if we had city center coordinates
+        # For now, return a placeholder value
+        return 2.5  # km
 
 
 class HotelSearchSerializer(serializers.ModelSerializer):
