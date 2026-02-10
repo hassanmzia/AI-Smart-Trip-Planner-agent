@@ -31,12 +31,33 @@ def transform_serp_flight(flight_data, idx, departure_date=None):
     first_leg = flight_data['flights'][0] if 'flights' in flight_data else {}
     last_leg = flight_data['flights'][-1] if 'flights' in flight_data else {}
 
-    # Extract layovers/stops
+    # Extract layovers/stops with details
     layovers = flight_data.get('layovers', [])
     stops = len(layovers)
 
+    # Format layover details
+    layover_details = []
+    for layover in layovers:
+        layover_info = {
+            'airport': layover.get('name', 'Unknown'),
+            'duration': layover.get('duration', 0),
+            'id': layover.get('id', '')
+        }
+        layover_details.append(layover_info)
+
     # Calculate total duration in minutes
     duration_mins = flight_data.get('total_duration', 0)
+
+    # Extract carbon emissions data
+    carbon_emissions = flight_data.get('carbon_emissions', {})
+    carbon_data = {
+        'this_flight': carbon_emissions.get('this_flight', 0),
+        'typical_for_route': carbon_emissions.get('typical_for_this_route', 0),
+        'difference_percent': carbon_emissions.get('difference_percent', 0)
+    }
+
+    # Extract airline logo
+    airline_logo = flight_data.get('airline_logo', '')
 
     # Helper to create airport object
     def make_airport_from_serp(airport_data):
@@ -113,9 +134,29 @@ def transform_serp_flight(flight_data, idx, departure_date=None):
     except (ValueError, TypeError):
         price = 0.0
 
+    # Extract amenities and additional info from extensions
+    extensions = flight_data.get('extensions', [])
+    amenities = []
+
+    # Add travel class info if available
+    if first_leg.get('travel_class'):
+        amenities.append(f"Travel Class: {first_leg.get('travel_class')}")
+
+    # Add legroom if available
+    if first_leg.get('legroom'):
+        amenities.append(f"Legroom: {first_leg.get('legroom')}")
+
+    # Add extensions
+    if isinstance(extensions, list):
+        amenities.extend(extensions[:5])
+
+    # Extract often_delayed_by if available
+    often_delayed_by = flight_data.get('often_delayed_by')
+
     return {
         'id': f"SERP_{idx}_{flight_data.get('departure_token', '')}",
         'airline': first_leg.get('airline', 'Unknown'),
+        'airlineLogo': airline_logo,
         'flightNumber': first_leg.get('flight_number', 'N/A'),
         'origin': make_airport_from_serp(first_leg.get('departure_airport', {})),
         'destination': make_airport_from_serp(last_leg.get('arrival_airport', {})),
@@ -126,9 +167,13 @@ def transform_serp_flight(flight_data, idx, departure_date=None):
         'currency': 'USD',
         'class': flight_data.get('type', 'economy'),
         'stops': stops,
+        'layovers': layover_details,
         'availableSeats': 9,  # SERP API doesn't provide this
         'aircraft': first_leg.get('airplane', 'Unknown'),
-        'amenities': flight_data.get('extensions', [])
+        'amenities': amenities,
+        'carbonEmissions': carbon_data,
+        'oftenDelayedBy': often_delayed_by,
+        'bookingToken': flight_data.get('booking_token', '')
     }
 
 
