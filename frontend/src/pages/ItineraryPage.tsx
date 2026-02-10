@@ -163,8 +163,8 @@ const ItineraryPage = () => {
                 <div className="flex items-center text-gray-600 dark:text-gray-400 mb-3">
                   <CalendarIcon className="h-4 w-4 mr-1" />
                   <span className="text-sm">
-                    {formatDate(itinerary.start_date, 'MMM DD')} -{' '}
-                    {formatDate(itinerary.end_date, 'MMM DD, YYYY')}
+                    {formatDate(itinerary.start_date, 'MMM dd')} -{' '}
+                    {formatDate(itinerary.end_date, 'MMM dd, yyyy')}
                   </span>
                   <span className="ml-2 text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
                     {calculateDays(itinerary.start_date, itinerary.end_date)} days
