@@ -219,6 +219,24 @@ const AIPlannerPage = () => {
                         ${result.recommendation.recommended_flight.price}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">per person</p>
+                      {result.recommendation.recommended_flight.goal_score !== undefined && (
+                        <div className="mt-2 text-xs">
+                          <p className={`font-medium ${
+                            result.recommendation.recommended_flight.budget_status === 'within budget'
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-orange-600 dark:text-orange-400'
+                          }`}>
+                            {result.recommendation.recommended_flight.budget_status === 'within budget'
+                              ? `✓ Within budget (saves $${result.recommendation.recommended_flight.savings})`
+                              : `! Over budget by $${result.recommendation.recommended_flight.budget_difference}`
+                            }
+                          </p>
+                          <p className="text-gray-600 dark:text-gray-400">
+                            Goal Score: {result.recommendation.recommended_flight.goal_score > 0 ? '+' : ''}
+                            {result.recommendation.recommended_flight.goal_score}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
