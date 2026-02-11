@@ -126,8 +126,9 @@ def format_attraction(data: dict, city: str, category: str = '') -> dict:
         # Determine category from type or query
         attraction_category = category or detect_category(data.get('type', ''), data.get('title', ''))
 
-        # Determine price level
-        price_level = determine_price_level(data)
+        # Determine price level and estimated ticket price
+        price_level = determine_price_level(data, attraction_category)
+        ticket_price = estimate_ticket_price(price_level, attraction_category)
 
         return {
             'name': data.get('title', 'Unknown Attraction'),
@@ -138,6 +139,7 @@ def format_attraction(data: dict, city: str, category: str = '') -> dict:
             'rating': float(data.get('rating', 0)),
             'review_count': int(data.get('reviews', 0)),
             'price_level': price_level,
+            'ticket_price': ticket_price,
             'hours': data.get('hours', ''),
             'phone': data.get('phone', ''),
             'website': data.get('website', ''),
@@ -176,13 +178,19 @@ def detect_category(type_str: str, title: str) -> str:
         return 'general'
 
 
-def determine_price_level(data: dict) -> str:
+def determine_price_level(data: dict, category: str = '') -> str:
     """Determine price level for attraction"""
     # Check if it's free (parks, public spaces, etc.)
     type_str = data.get('type', '').lower()
     title = data.get('title', '').lower()
 
-    if any(word in type_str or word in title for word in ['park', 'public', 'free', 'plaza', 'square']):
+    # Category-based pricing
+    if category in ['parks', 'beaches', 'landmarks', 'religious']:
+        # These are often free
+        if any(word in type_str or word in title for word in ['national', 'state', 'memorial', 'monument']):
+            return 'free'
+
+    if any(word in type_str or word in title for word in ['park', 'public', 'free', 'plaza', 'square', 'memorial']):
         return 'free'
 
     # Check for price indicators in description
@@ -190,11 +198,41 @@ def determine_price_level(data: dict) -> str:
     if 'free' in description or 'no admission' in description:
         return 'free'
 
-    # Default to moderate pricing
+    # Category-specific pricing
+    if category == 'museums':
+        return '$$'
+    elif category == 'entertainment':
+        return '$$$'
+    elif category == 'shopping':
+        return 'free'
+
+    # Default based on rating
     rating = float(data.get('rating', 0))
     if rating >= 4.5:
-        return '$$'  # Popular attractions tend to charge
+        return '$$'
     elif rating >= 4.0:
         return '$'
     else:
-        return 'free'  # Assume free if no clear price info
+        return 'free'
+
+
+def estimate_ticket_price(price_level: str, category: str = '') -> float:
+    """Estimate ticket price based on price level and category"""
+    # Base prices by level
+    price_map = {
+        'free': 0,
+        '$': 15,
+        '$$': 25,
+        '$$$': 45,
+        '$$$$': 75
+    }
+
+    base_price = price_map.get(price_level, 0)
+
+    # Adjust by category
+    if category == 'entertainment':
+        base_price = base_price * 1.5 if base_price > 0 else 50
+    elif category == 'museums':
+        base_price = base_price or 20
+
+    return round(base_price, 2)
