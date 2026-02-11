@@ -161,7 +161,7 @@ const AIPlannerPage = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                     <p className="text-sm text-gray-600 dark:text-gray-400">Flights Found</p>
                     <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -172,6 +172,12 @@ const AIPlannerPage = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-400">Hotels Found</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                       {result.recommendation?.summary?.hotels_found || 0}
+                    </p>
+                  </div>
+                  <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Cars Found</p>
+                    <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                      {result.recommendation?.summary?.cars_found || 0}
                     </p>
                   </div>
                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
