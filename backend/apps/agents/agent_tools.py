@@ -4,6 +4,7 @@ Includes all tools from the notebook: flight search, hotel search, goal checker,
 """
 from typing import Dict, Any, List, Optional
 import requests
+import json
 from datetime import datetime
 from django.conf import settings
 from serpapi import GoogleSearch
