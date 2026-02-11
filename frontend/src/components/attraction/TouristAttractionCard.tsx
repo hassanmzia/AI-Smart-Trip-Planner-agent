@@ -94,9 +94,19 @@ const TouristAttractionCard: React.FC<TouristAttractionCardProps> = ({ attractio
               {/* Price */}
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 dark:text-gray-400">💰</span>
-                <span className="font-semibold text-green-600 dark:text-green-400">
-                  {attraction.price_level === 'free' ? 'Free Entry' : attraction.price_level}
-                </span>
+                <div className="flex flex-col">
+                  <span className="font-semibold text-green-600 dark:text-green-400">
+                    {attraction.ticket_price === 0
+                      ? 'Free Entry'
+                      : `$${attraction.ticket_price.toFixed(2)}`
+                    }
+                  </span>
+                  {attraction.ticket_price > 0 && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      est. ticket price
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Hours */}

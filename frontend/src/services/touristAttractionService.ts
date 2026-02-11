@@ -10,6 +10,7 @@ export interface TouristAttraction {
   rating: number;
   review_count: number;
   price_level: string;
+  ticket_price: number;
   hours: string;
   phone: string;
   website: string;
