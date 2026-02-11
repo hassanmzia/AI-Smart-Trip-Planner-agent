@@ -668,13 +668,42 @@ class CarRentalSearchTool:
             JSON string with car rental results
         """
         try:
-            logger.info(f"Searching car rentals: {pickup_location}, {pickup_date} to {dropoff_date}")
+            # Convert airport codes to city names for Google Local search
+            airport_to_city = {
+                'LAX': 'Los Angeles',
+                'JFK': 'New York JFK',
+                'LGA': 'New York LaGuardia',
+                'EWR': 'Newark',
+                'ORD': 'Chicago',
+                'SFO': 'San Francisco',
+                'MIA': 'Miami',
+                'DFW': 'Dallas',
+                'SEA': 'Seattle',
+                'BOS': 'Boston',
+                'ATL': 'Atlanta',
+                'DEN': 'Denver',
+                'IAD': 'Washington DC',
+                'DCA': 'Washington DC',
+                'LAS': 'Las Vegas',
+                'PHX': 'Phoenix',
+                'IAH': 'Houston',
+                'MCO': 'Orlando',
+                'CDG': 'Paris',
+                'LHR': 'London',
+                'BER': 'Berlin',
+                'FCO': 'Rome',
+                'NRT': 'Tokyo',
+            }
+
+            # Convert location if it's an airport code
+            search_location = airport_to_city.get(pickup_location.upper(), pickup_location)
+            logger.info(f"Searching car rentals: {pickup_location} -> {search_location}, {pickup_date} to {dropoff_date}")
 
             # Build SerpAPI parameters
             params = {
                 "engine": "google_local",
-                "q": f"car rental {pickup_location}",
-                "location": pickup_location,
+                "q": f"car rental {search_location}",
+                "location": search_location,
                 "api_key": settings.SERP_API_KEY
             }
 
