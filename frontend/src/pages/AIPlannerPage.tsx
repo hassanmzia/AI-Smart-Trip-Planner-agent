@@ -366,6 +366,65 @@ const AIPlannerPage = () => {
             </Card>
           )}
 
+          {/* Alternative Flight */}
+          {result.recommendation?.alternative_flight && (
+            <Card>
+              <CardHeader>
+                <CardTitle>✈️ Alternative Flight Option</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    {result.recommendation.alternative_flight.airline_logo && (
+                      <img
+                        src={result.recommendation.alternative_flight.airline_logo}
+                        alt={result.recommendation.alternative_flight.airline}
+                        className="h-8 w-8 object-contain"
+                      />
+                    )}
+                    <div>
+                      <h4 className="font-semibold">{result.recommendation.alternative_flight.airline}</h4>
+                      {result.recommendation.alternative_flight.flight_number && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Flight {result.recommendation.alternative_flight.flight_number}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 mt-1 text-sm">
+                        <span>{result.recommendation.alternative_flight.departure_time?.split(' ')[1] || result.recommendation.alternative_flight.departure_time}</span>
+                        <span className="text-gray-400">→</span>
+                        <span>{result.recommendation.alternative_flight.arrival_time?.split(' ')[1] || result.recommendation.alternative_flight.arrival_time}</span>
+                        <span className="mx-2 text-gray-400">•</span>
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {result.recommendation.alternative_flight.stops === 0
+                            ? 'Nonstop'
+                            : `${result.recommendation.alternative_flight.stops} stop${result.recommendation.alternative_flight.stops > 1 ? 's' : ''}`
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                      ${result.recommendation.alternative_flight.price}
+                    </p>
+                    {result.recommendation.alternative_flight.goal_score !== undefined && (
+                      <p className={`text-sm mt-1 ${
+                        result.recommendation.alternative_flight.budget_status === 'within budget'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-orange-600 dark:text-orange-400'
+                      }`}>
+                        {result.recommendation.alternative_flight.budget_status === 'within budget'
+                          ? `✓ Within budget`
+                          : `! Over budget`
+                        }
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Recommended Hotel - Enhanced */}
           {result.recommendation?.recommended_hotel && (
             <Card>
@@ -713,6 +772,189 @@ const AIPlannerPage = () => {
             </Card>
           )}
 
+          {/* Recommended Restaurant */}
+          {result.recommendation?.recommended_restaurant && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🍽️ Recommended Restaurant</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Restaurant Image and Info */}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    {/* Restaurant Image */}
+                    {(result.recommendation.recommended_restaurant.thumbnail || result.recommendation.recommended_restaurant.primary_image) && (
+                      <img
+                        src={result.recommendation.recommended_restaurant.thumbnail || result.recommendation.recommended_restaurant.primary_image}
+                        alt={result.recommendation.recommended_restaurant.name}
+                        className="w-full md:w-64 h-48 object-cover rounded-lg"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+
+                    {/* Restaurant Details */}
+                    <div className="flex-1 space-y-3">
+                      {/* Restaurant Header */}
+                      <div>
+                        <h3 className="text-xl font-semibold">
+                          {result.recommendation.recommended_restaurant.name}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {result.recommendation.recommended_restaurant.cuisine_type} • {result.recommendation.recommended_restaurant.city}
+                        </p>
+                      </div>
+
+                      {/* Rating */}
+                      {result.recommendation.recommended_restaurant.rating > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-yellow-500">⭐</span>
+                          <span className="font-semibold">{result.recommendation.recommended_restaurant.rating.toFixed(1)}</span>
+                          {result.recommendation.recommended_restaurant.review_count > 0 && (
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              ({result.recommendation.recommended_restaurant.review_count} reviews)
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Price Info */}
+                      <div className="bg-primary-50 dark:bg-primary-900/20 p-3 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
+                              {result.recommendation.recommended_restaurant.price_range}
+                            </p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              ~${result.recommendation.recommended_restaurant.average_cost_per_person} per person
+                            </p>
+                          </div>
+                          {result.recommendation.recommended_restaurant.utility_score !== undefined && (
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                Utility Score
+                              </p>
+                              <p className="text-xl font-bold text-primary-600 dark:text-primary-400">
+                                {result.recommendation.recommended_restaurant.utility_score}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Address */}
+                      {result.recommendation.recommended_restaurant.address && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          📍 {result.recommendation.recommended_restaurant.address}
+                        </div>
+                      )}
+
+                      {/* Hours */}
+                      {result.recommendation.recommended_restaurant.hours && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          🕒 {result.recommendation.recommended_restaurant.hours}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Utility Score Breakdown */}
+                  {(result.recommendation.recommended_restaurant.rating_utility_score !== undefined ||
+                    result.recommendation.recommended_restaurant.price_utility_score !== undefined) && (
+                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Utility Score Breakdown:
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        {result.recommendation.recommended_restaurant.rating_utility_score !== undefined && (
+                          <div className="text-gray-600 dark:text-gray-400">
+                            • Rating Score: {result.recommendation.recommended_restaurant.rating_utility_score > 0 ? '+' : ''}
+                            {result.recommendation.recommended_restaurant.rating_utility_score}
+                          </div>
+                        )}
+                        {result.recommendation.recommended_restaurant.price_utility_score !== undefined && (
+                          <div className="text-gray-600 dark:text-gray-400">
+                            • Price Score: {result.recommendation.recommended_restaurant.price_utility_score > 0 ? '+' : ''}
+                            {result.recommendation.recommended_restaurant.price_utility_score}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Services */}
+                  <div className="flex flex-wrap gap-2">
+                    {result.recommendation.recommended_restaurant.has_delivery && (
+                      <span className="text-xs px-3 py-1.5 bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 rounded-full">
+                        🚚 Delivery
+                      </span>
+                    )}
+                    {result.recommendation.recommended_restaurant.has_takeout && (
+                      <span className="text-xs px-3 py-1.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                        🥡 Takeout
+                      </span>
+                    )}
+                    {result.recommendation.recommended_restaurant.has_reservation && (
+                      <span className="text-xs px-3 py-1.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded-full">
+                        📅 Reservations
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Contact */}
+                  <div className="flex gap-3 text-sm">
+                    {result.recommendation.recommended_restaurant.phone && (
+                      <a
+                        href={`tel:${result.recommendation.recommended_restaurant.phone}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        📞 {result.recommendation.recommended_restaurant.phone}
+                      </a>
+                    )}
+                    {result.recommendation.recommended_restaurant.website && (
+                      <a
+                        href={result.recommendation.recommended_restaurant.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        🌐 Website
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Recommendation */}
+                  {result.recommendation.recommended_restaurant.recommendation && (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        💡 {result.recommendation.recommended_restaurant.recommendation}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No restaurant message */}
+          {result.recommendation && !result.recommendation.recommended_restaurant && result.recommendation.summary?.restaurants_found > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🍽️ Restaurant Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-6 text-gray-600 dark:text-gray-400">
+                  <p className="text-lg">⚠️ No restaurants with ratings available</p>
+                  <p className="mt-2 text-sm">
+                    Restaurants at this location don't have sufficient rating data.
+                    Please try searching for restaurants directly.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Alternative Hotels */}
           {result.recommendation?.top_5_hotels && result.recommendation.top_5_hotels.length > 1 && (
             <Card>
@@ -755,8 +997,13 @@ const AIPlannerPage = () => {
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+    </div>
+  );
+};
 
-          {/* Recommended Restaurant */}
+export default AIPlannerPage;
           {result.recommendation?.recommended_restaurant && (
             <Card>
               <CardHeader>
