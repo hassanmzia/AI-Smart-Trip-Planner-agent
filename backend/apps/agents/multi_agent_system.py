@@ -829,8 +829,12 @@ class MultiAgentTravelSystem:
                 "cuisine": kwargs.get('cuisine'),
                 "flight_results": None,
                 "hotel_results": None,
+                "car_rental_results": None,
+                "restaurant_results": None,
                 "goal_evaluation": None,
                 "utility_evaluation": None,
+                "car_evaluation": None,
+                "restaurant_evaluation": None,
                 "final_recommendation": None,
                 "current_agent": "flight",
                 "error": None
