@@ -6,6 +6,8 @@ import Button from '@/components/common/Button';
 const CommutePage = () => {
   const [searchParams] = useSearchParams();
   const [city, setCity] = useState(searchParams.get('city') || '');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [commuteData, setCommuteData] = useState<CommuteData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -17,6 +19,11 @@ const CommutePage = () => {
       return;
     }
 
+    if (startDate && endDate && new Date(endDate) < new Date(startDate)) {
+      setError('End date must be after start date');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSearched(true);
@@ -24,6 +31,8 @@ const CommutePage = () => {
     try {
       const response = await commuteService.getCommuteInfo({
         city: city.trim(),
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       });
 
       if (response.success) {
@@ -69,14 +78,14 @@ const CommutePage = () => {
             🚗 Local Commute & Traffic
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Get real-time traffic conditions, public transport info, and commute times
+            Get predicted traffic conditions for your travel dates, plus real-time info and commute times
           </p>
         </div>
 
         {/* Search Section */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
-          <div className="flex gap-4">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 City or Airport Code
               </label>
@@ -89,11 +98,33 @@ const CommutePage = () => {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Travel Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Travel End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
             <div className="flex items-end">
               <Button
                 onClick={handleSearch}
                 disabled={loading}
-                className="whitespace-nowrap"
+                className="w-full"
               >
                 {loading ? 'Loading...' : 'Get Traffic Info'}
               </Button>
@@ -118,6 +149,130 @@ const CommutePage = () => {
         {/* Results */}
         {!loading && searched && commuteData && (
           <div className="space-y-6">
+            {/* Daily Traffic Predictions */}
+            {commuteData.daily_predictions && commuteData.daily_predictions.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                  📅 Traffic Predictions for Your Travel Period
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                  Plan your trips around predicted traffic conditions
+                </p>
+                <div className="space-y-4">
+                  {commuteData.daily_predictions.map((prediction, index) => (
+                    <div
+                      key={index}
+                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-5"
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {prediction.day_name}, {new Date(prediction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              {prediction.overall_rating}
+                            </span>
+                            <span className={`text-lg font-bold ${getTrafficLevelColor(prediction.overall_level)}`}>
+                              {prediction.overall_level}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Traffic Periods */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            {prediction.periods.morning_rush.time}
+                          </div>
+                          <div className="font-medium text-gray-900 dark:text-white mb-1">
+                            Morning Rush
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {prediction.periods.morning_rush.condition}
+                            </span>
+                            <span className={`text-sm font-semibold ${getTrafficLevelColor(prediction.periods.morning_rush.traffic_level)}`}>
+                              {prediction.periods.morning_rush.traffic_level}%
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            {prediction.periods.midday.time}
+                          </div>
+                          <div className="font-medium text-gray-900 dark:text-white mb-1">
+                            Midday
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {prediction.periods.midday.condition}
+                            </span>
+                            <span className={`text-sm font-semibold ${getTrafficLevelColor(prediction.periods.midday.traffic_level)}`}>
+                              {prediction.periods.midday.traffic_level}%
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                            {prediction.periods.evening_rush.time}
+                          </div>
+                          <div className="font-medium text-gray-900 dark:text-white mb-1">
+                            Evening Rush
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                              {prediction.periods.evening_rush.condition}
+                            </span>
+                            <span className={`text-sm font-semibold ${getTrafficLevelColor(prediction.periods.evening_rush.traffic_level)}`}>
+                              {prediction.periods.evening_rush.traffic_level}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Recommendations */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <div className="flex items-start gap-2 text-sm">
+                          <span className="text-green-600 dark:text-green-400">✓</span>
+                          <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Best time:</span>{' '}
+                            <span className="text-gray-600 dark:text-gray-400">{prediction.best_time_to_travel}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2 text-sm">
+                          <span className="text-red-600 dark:text-red-400">⚠</span>
+                          <div>
+                            <span className="font-medium text-gray-700 dark:text-gray-300">Avoid:</span>{' '}
+                            <span className="text-gray-600 dark:text-gray-400">{prediction.times_to_avoid.join(', ')}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      {prediction.notes && prediction.notes.length > 0 && (
+                        <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
+                          <div className="flex flex-wrap gap-2">
+                            {prediction.notes.map((note, noteIndex) => (
+                              <span
+                                key={noteIndex}
+                                className="px-2 py-1 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-xs rounded"
+                              >
+                                {note}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Current Traffic Conditions */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">

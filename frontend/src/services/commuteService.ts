@@ -74,9 +74,37 @@ export interface RoadConditions {
   detour_info: string;
 }
 
+export interface DailyTrafficPrediction {
+  date: string;
+  day_name: string;
+  overall_rating: string;
+  overall_level: number;
+  periods: {
+    morning_rush: {
+      time: string;
+      condition: string;
+      traffic_level: number;
+    };
+    midday: {
+      time: string;
+      condition: string;
+      traffic_level: number;
+    };
+    evening_rush: {
+      time: string;
+      condition: string;
+      traffic_level: number;
+    };
+  };
+  best_time_to_travel: string;
+  times_to_avoid: string[];
+  notes: string[];
+}
+
 export interface CommuteData {
   success: boolean;
   location: string;
+  daily_predictions: DailyTrafficPrediction[];
   traffic_conditions: TrafficCondition;
   public_transport: PublicTransportOption[];
   peak_hours: {
@@ -99,6 +127,8 @@ export interface CommuteData {
 
 export interface CommuteSearchParams {
   city: string;
+  start_date?: string;
+  end_date?: string;
 }
 
 class CommuteService {
@@ -109,6 +139,8 @@ class CommuteService {
       const response = await axios.get(`${this.apiUrl}/info/`, {
         params: {
           city: params.city,
+          start_date: params.start_date,
+          end_date: params.end_date,
         },
       });
 
