@@ -49,9 +49,13 @@ def get_commute_info(request):
 
     Query Parameters:
     - city: City name or airport code (required)
+    - start_date: Start date of travel period (optional, format: YYYY-MM-DD)
+    - end_date: End date of travel period (optional, format: YYYY-MM-DD)
     """
     try:
         city_raw = request.query_params.get('city', '')
+        start_date_str = request.query_params.get('start_date', '')
+        end_date_str = request.query_params.get('end_date', '')
 
         if not city_raw:
             return Response({
@@ -62,8 +66,36 @@ def get_commute_info(request):
         # Convert airport code to city name
         city = convert_airport_to_city(city_raw)
 
+        # Parse dates if provided
+        start_date = None
+        end_date = None
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'error': 'Invalid start_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            except ValueError:
+                return Response({
+                    'success': False,
+                    'error': 'Invalid end_date format. Use YYYY-MM-DD'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate date range
+        if start_date and end_date and end_date < start_date:
+            return Response({
+                'success': False,
+                'error': 'End date must be after start date'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         # Generate commute information
-        commute_data = generate_commute_data(city)
+        commute_data = generate_commute_data(city, start_date, end_date)
 
         return Response({
             'success': True,
@@ -79,8 +111,13 @@ def get_commute_info(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-def generate_commute_data(city: str) -> dict:
+def generate_commute_data(city: str, start_date=None, end_date=None) -> dict:
     """Generate commute and traffic information for a city"""
+
+    # If dates provided, generate daily traffic predictions
+    daily_predictions = []
+    if start_date and end_date:
+        daily_predictions = generate_daily_traffic_predictions(city, start_date, end_date)
 
     # Current traffic conditions
     traffic_conditions = generate_current_traffic(city)
@@ -184,6 +221,7 @@ def generate_commute_data(city: str) -> dict:
     }
 
     return {
+        'daily_predictions': daily_predictions,
         'traffic_conditions': traffic_conditions,
         'public_transport': public_transport,
         'peak_hours': peak_hours,
@@ -195,6 +233,117 @@ def generate_commute_data(city: str) -> dict:
         'commute_tips': commute_tips,
         'road_conditions': road_conditions,
     }
+
+
+def generate_daily_traffic_predictions(city: str, start_date: datetime, end_date: datetime) -> list:
+    """Generate daily traffic predictions for the travel period"""
+    predictions = []
+    current_date = start_date
+
+    # Limit to 14 days max
+    max_days = min((end_date - start_date).days + 1, 14)
+
+    for i in range(max_days):
+        date = current_date + timedelta(days=i)
+        day_name = date.strftime('%A')
+        date_str = date.strftime('%Y-%m-%d')
+
+        # Determine traffic severity based on day of week
+        is_weekend = day_name in ['Saturday', 'Sunday']
+        is_friday = day_name == 'Friday'
+
+        # Morning rush prediction
+        if is_weekend:
+            morning_condition = random.choice(['Light', 'Moderate'])
+            morning_level = random.randint(20, 45)
+        else:
+            morning_condition = random.choice(['Moderate', 'Heavy', 'Very Heavy'])
+            morning_level = random.randint(50, 85)
+
+        # Midday prediction
+        if is_weekend:
+            midday_condition = random.choice(['Moderate', 'Heavy'])
+            midday_level = random.randint(40, 65)
+        else:
+            midday_condition = random.choice(['Light', 'Moderate'])
+            midday_level = random.randint(25, 50)
+
+        # Evening rush prediction
+        if is_weekend:
+            evening_condition = random.choice(['Moderate', 'Heavy'])
+            evening_level = random.randint(45, 70)
+        elif is_friday:
+            evening_condition = random.choice(['Heavy', 'Very Heavy'])
+            evening_level = random.randint(70, 90)
+        else:
+            evening_condition = random.choice(['Heavy', 'Very Heavy'])
+            evening_level = random.randint(60, 85)
+
+        # Overall day rating
+        avg_level = (morning_level + midday_level + evening_level) / 3
+        if avg_level >= 70:
+            overall_rating = 'Very Heavy Traffic Expected'
+        elif avg_level >= 55:
+            overall_rating = 'Heavy Traffic Expected'
+        elif avg_level >= 40:
+            overall_rating = 'Moderate Traffic Expected'
+        else:
+            overall_rating = 'Light Traffic Expected'
+
+        # Best time to travel
+        if morning_level < midday_level and morning_level < evening_level:
+            best_time = 'Early morning (before 7 AM)'
+        elif midday_level < morning_level and midday_level < evening_level:
+            best_time = 'Midday (10 AM - 3 PM)'
+        else:
+            best_time = 'Late evening (after 8 PM)'
+
+        # Times to avoid
+        times_to_avoid = []
+        if morning_level >= 60:
+            times_to_avoid.append('7:00 AM - 9:30 AM')
+        if evening_level >= 60:
+            times_to_avoid.append('4:30 PM - 7:00 PM')
+        if not times_to_avoid:
+            times_to_avoid = ['No major congestion expected']
+
+        # Special events or notes
+        notes = []
+        if is_weekend:
+            notes.append('Weekend traffic patterns - less commuter traffic')
+        if is_friday:
+            notes.append('Friday evening rush typically heavier')
+        if day_name == 'Monday':
+            notes.append('Monday morning rush typically heavier')
+
+        predictions.append({
+            'date': date_str,
+            'day_name': day_name,
+            'overall_rating': overall_rating,
+            'overall_level': round(avg_level),
+            'periods': {
+                'morning_rush': {
+                    'time': '7:00 AM - 9:30 AM',
+                    'condition': morning_condition,
+                    'traffic_level': morning_level,
+                },
+                'midday': {
+                    'time': '10:00 AM - 3:00 PM',
+                    'condition': midday_condition,
+                    'traffic_level': midday_level,
+                },
+                'evening_rush': {
+                    'time': '4:30 PM - 7:00 PM',
+                    'condition': evening_condition,
+                    'traffic_level': evening_level,
+                },
+            },
+            'best_time_to_travel': best_time,
+            'times_to_avoid': times_to_avoid,
+            'notes': notes,
+        })
+
+    return predictions
 
 
 def generate_current_traffic(city: str) -> dict:
