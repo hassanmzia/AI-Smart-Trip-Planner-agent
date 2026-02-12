@@ -531,8 +531,51 @@ def _synthesize_narrative(*, result, origin, destination, departure_date,
 
     budget_summary = ''
     total_cost = rec.get('total_estimated_cost')
-    if total_cost:
-        budget_summary = f"Estimated Trip Cost from search agents: ${total_cost}"
+
+    # Pre-compute actual costs from search agent data for the LLM
+    flight_price = 0
+    hotel_price_per_night = 0
+    hotel_total = 0
+    car_total = 0
+    try:
+        rf = rec.get('recommended_flight', {})
+        flight_price = float(rf.get('price', 0) or 0)
+    except (ValueError, TypeError):
+        flight_price = 0
+    try:
+        rh = rec.get('recommended_hotel', {})
+        hotel_price_per_night = float(rh.get('price') or rh.get('price_per_night', 0) or 0)
+        hotel_total = hotel_price_per_night * num_nights
+    except (ValueError, TypeError):
+        hotel_total = 0
+    try:
+        rc = rec.get('recommended_car', {})
+        car_total = float(rc.get('total_price', 0) or 0)
+    except (ValueError, TypeError):
+        car_total = 0
+
+    known_costs_total = flight_price + hotel_total + car_total
+    budget_display = f"${budget}" if budget else "flexible (no limit set)"
+    budget_remaining_instruction = ""
+    if budget:
+        try:
+            b = float(budget)
+            if known_costs_total > 0:
+                budget_remaining_instruction = f"Known costs so far: ${known_costs_total:.0f}. Remaining for food/activities/transport: ${max(0, b - known_costs_total):.0f}."
+        except (ValueError, TypeError):
+            pass
+
+    budget_summary = (
+        f"Flight cost: ${flight_price:.0f}\n"
+        f"Hotel cost: ${hotel_price_per_night:.0f}/night × {num_nights} nights = ${hotel_total:.0f}\n"
+        f"Car rental: ${car_total:.0f}\n"
+        f"Agent estimated total: ${total_cost or 'N/A'}\n"
+        f"Customer budget: {budget_display}\n"
+        f"{budget_remaining_instruction}\n"
+        f"IMPORTANT: You MUST calculate real dollar amounts for Food & Dining, Transportation, "
+        f"and Activities in the Budget Summary table — estimate from restaurant prices, transit costs, "
+        f"and activity costs mentioned in the plan. Never leave $X as placeholder."
+    )
 
     # ── Build intelligence sections from destination_intelligence ──
     weather_by_day = json.dumps(intel.get('weather_by_day', []), indent=2) if intel.get('weather_by_day') else 'Not available'
@@ -600,6 +643,17 @@ Your job is to create a COMPLETE, ACTIONABLE day-by-day travel plan that integra
 - If car was rented: include car dropoff at the airport BEFORE check-in
 - NEVER end the plan abruptly — the last day MUST be as detailed as Day 1
 
+### Rule 6: BUDGET — ALWAYS show real dollar amounts for EVERY cost
+- Include a (~$cost) estimate for EVERY activity, meal, and transport mentioned in the plan
+- In the Budget Summary table, calculate ACTUAL totals by summing daily costs from the plan
+- Flight and Hotel costs are KNOWN (use exact values from search data below)
+- Food costs: sum all restaurant meal costs from daily plans (use restaurant price data)
+- Transport: sum taxi, metro, shuttle costs from daily "Getting there" directions
+- Activities: sum entry fees and tour costs
+- NEVER use "$X" or leave placeholders — compute real estimated numbers
+- If no budget was set, show "flexible" for the Budget row and "N/A" for Remaining
+- If a budget was set, show whether the total is under or over budget
+
 ---
 
 ## SEARCH AGENT DATA (these are REAL bookings — use exact names/details):
@@ -616,9 +670,8 @@ Your job is to create a COMPLETE, ACTIONABLE day-by-day travel plan that integra
 ### Car Rental Agent Result
 {car_summary}
 
-### Budget
+### Budget Data
 {budget_summary}
-Planned budget: ${budget or 'flexible'}
 
 ---
 
@@ -676,7 +729,7 @@ Passengers: {passengers}
   → Getting there: [directions from hotel]
 [Time] - Dinner at [RESTAURANT #1 NAME from search results], [address] (~$cost/person)
   → Getting there: [directions from hotel]
-**Day cost estimate: $X**
+**Day cost estimate: $[sum of all (~$cost) items above — MUST be a real number]**
 
 ## Day 2: [Title] (next date)
 **Weather: [condition, high/low temp]**
@@ -689,7 +742,7 @@ Passengers: {passengers}
 ...continue with afternoon and evening...
 7:30 PM - Dinner at [RESTAURANT #3 NAME from search results], [address] (~$cost/person)
   → Getting there: [directions]
-**Day cost estimate: $X**
+**Day cost estimate: $[sum of all (~$cost) items above — MUST be a real number]**
 
 (Continue for ALL {num_nights + 1} days, using remaining restaurants from the list)
 
@@ -706,7 +759,7 @@ Passengers: {passengers}
 [Time] - Estimated departure (based on typical evening/afternoon return flights)
 [Time] - Arrive back in {origin}
   → Getting home: [taxi/metro/ride-share from arrival airport]
-**Day cost estimate: $X**
+**Day cost estimate: $[sum of all (~$cost) items above — MUST be a real number]**
 
 ## Local Events to Catch
 (Events happening during the travel dates)
@@ -720,20 +773,29 @@ Passengers: {passengers}
 ## Budget Summary
 | Category | Cost |
 |----------|------|
-| Flights | $X |
-| Hotel (${rec.get('recommended_hotel', {}).get('price') or rec.get('recommended_hotel', {}).get('price_per_night', 'N/A')}/night × {num_nights} nights) | $X |
-| Food & Dining | $X |
-| Transportation (local) | $X |
-| Activities & Attractions | $X |
-| **Total** | **$X** |
-| Budget | ${budget or 'flexible'} |
-| Remaining / Over | $X |
+| Flights | ${flight_price:.0f} |
+| Hotel (${hotel_price_per_night:.0f}/night x {num_nights} nights) | ${hotel_total:.0f} |
+| Car Rental | ${car_total:.0f} |
+| Food & Dining | $[CALCULATE from restaurant prices in the plan] |
+| Transportation (local) | $[CALCULATE from transit/taxi costs in the plan] |
+| Activities & Attractions | $[CALCULATE from entry fees and activity costs in the plan] |
+| **Total** | **$[SUM all above rows]** |
+| Budget | {budget_display} |
+| Remaining / Over | $[Budget minus Total, or "N/A" if flexible] |
+
+CRITICAL: Replace every [CALCULATE...] and [SUM...] with ACTUAL dollar amounts.
+Add up every food cost, taxi/metro fare, and activity fee from the daily plans above.
+Never leave placeholders — compute real numbers.
 
 IMPORTANT REMINDERS:
 - Use the EXACT hotel name "{hotel_name_for_prompt}" every time you reference the hotel
 - Use the EXACT restaurant names from the search results for meals
 - Include "Getting there:" transit directions for every activity
-- Include specific times and costs for everything
+- Include specific times and costs (~$XX) for EVERY activity, meal, and transport
+- Every **Day cost estimate:** MUST be a real dollar sum of that day's costs
+- The Budget Summary table MUST have REAL dollar amounts — NEVER $X placeholders
+- Flights = ${flight_price:.0f}, Hotel = ${hotel_total:.0f} — these are FIXED from search data
+- Food, Transport, Activities — SUM the individual costs from each day's plan
 - Make weather-driven activity choices (indoor on rainy days, outdoor on sunny)
 - Avoid unsafe areas mentioned in the safety data"""
 
