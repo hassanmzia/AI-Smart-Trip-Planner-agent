@@ -4,6 +4,7 @@ import { useRequireAuth } from '@/hooks/useAuth';
 import { Card, Button } from '@/components/common';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import { createItinerary, getItinerary, updateItinerary } from '@/services/itineraryService';
+import { ItineraryPDFViewer } from '@/components/ItineraryPDFViewer';
 import toast from 'react-hot-toast';
 
 const ItineraryDetailPage = () => {
@@ -306,6 +307,16 @@ const ItineraryDetailPage = () => {
         </form>
         )}
       </Card>
+
+      {/* PDF Export & Email - only show for existing itineraries */}
+      {!isNewItinerary && id && (
+        <div className="mt-8">
+          <ItineraryPDFViewer
+            itineraryId={Number(id)}
+            destination={formData.destination || 'Your Trip'}
+          />
+        </div>
+      )}
     </div>
   );
 };

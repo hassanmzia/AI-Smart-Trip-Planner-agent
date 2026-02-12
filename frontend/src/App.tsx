@@ -128,8 +128,8 @@ function App() {
 
           <Footer />
 
-          {/* AI Agent Chat Widget - Temporarily disabled due to infinite loop */}
-          {/* <AgentChat /> */}
+          {/* AI Agent Chat Widget */}
+          <AgentChat />
 
           {/* Toast Notifications */}
           <Toaster
