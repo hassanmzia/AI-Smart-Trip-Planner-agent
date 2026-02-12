@@ -71,7 +71,7 @@ services:
       sh -c "python manage.py makemigrations --noinput &&
              python manage.py migrate &&
              python manage.py collectstatic --noinput &&
-             gunicorn travel_agent.wsgi:application --bind 0.0.0.0:8109 --workers 4 --timeout 120"
+             gunicorn travel_agent.wsgi:application --bind 0.0.0.0:8109 --workers 4 --timeout 300 --reload"
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles

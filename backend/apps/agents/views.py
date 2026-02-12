@@ -331,6 +331,7 @@ def _gather_enhanced_agent_data(*, destination, origin, departure_date, return_d
                 model=settings.AGENT_CONFIG.get('MODEL', 'gpt-4o-mini'),
                 temperature=0.3,
                 api_key=settings.OPENAI_API_KEY,
+                request_timeout=90,
             )
 
             intel_prompt = f"""You are a travel intelligence agent. Provide REAL, SPECIFIC data for a trip.
