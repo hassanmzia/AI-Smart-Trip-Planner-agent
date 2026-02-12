@@ -47,8 +47,18 @@ RUN pip install --upgrade pip && \
                 pydantic-settings==2.1.0 && \
     # Stage 9: AWS and email services
     pip install boto3==1.34.34 sendgrid==6.11.0 icalendar==5.0.11 && \
-    # Stage 10: Everything else from requirements.txt
-    pip install -r requirements.txt
+    # Stage 10: Monitoring and debugging
+    pip install sentry-sdk==1.40.0 django-debug-toolbar==4.3.0 \
+                python-json-logger==2.0.7 colorlog==6.8.2 && \
+    # Stage 11: Testing frameworks
+    pip install "pytest>=8.0.0" "pytest-django>=4.7.0" "pytest-cov>=4.1.0" \
+                "factory-boy>=3.3.0" && \
+    # Stage 12: Code quality and documentation
+    pip install black==24.1.1 flake8==7.0.0 isort==5.13.2 \
+                drf-spectacular==0.27.1 && \
+    # Stage 13: PDF generation and parsing
+    pip install reportlab==4.0.9 qrcode==7.4.2 Pillow==10.2.0 \
+                beautifulsoup4==4.12.3 lxml==5.1.0
 
 # Copy project
 COPY . .
