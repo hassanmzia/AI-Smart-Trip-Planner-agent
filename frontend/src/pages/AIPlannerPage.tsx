@@ -195,6 +195,7 @@ const AIPlannerPage = () => {
         estimated_budget: totalCost ? String(totalCost) : (budget ? budget : undefined),
         currency: 'USD',
         description: `AI-planned trip from ${origin} to ${destination}. ${passengers} passenger(s).`,
+        ai_narrative: result.itinerary_text || '',
       });
 
       const itineraryId = Number(itinerary.id);

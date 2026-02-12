@@ -57,6 +57,7 @@ export const createItinerary = async (data: {
   user: string;
   status?: string;
   description?: string;
+  ai_narrative?: string;
   number_of_travelers?: number;
   estimated_budget?: string;
   currency?: string;

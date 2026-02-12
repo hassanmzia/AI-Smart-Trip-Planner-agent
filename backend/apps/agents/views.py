@@ -553,11 +553,13 @@ def _synthesize_narrative(*, result, origin, destination, departure_date,
     except Exception:
         num_nights = 1
 
-    # --- Determine hotel name for prompt injection ---
+    # --- Determine hotel name and checkout time for prompt ---
     hotel_name_for_prompt = ''
+    hotel_checkout = '11:00 AM'
     if rec.get('recommended_hotel'):
         h = rec['recommended_hotel']
         hotel_name_for_prompt = h.get('name') or h.get('hotel_name', 'the hotel')
+        hotel_checkout = h.get('check_out_time', '11:00 AM') or '11:00 AM'
 
     prompt = f"""You are a SMART Agentic AI Travel Planner. You have data from 10+ specialized agents.
 Your job is to create a COMPLETE, ACTIONABLE day-by-day travel plan that integrates ALL search results.
@@ -587,10 +589,16 @@ Your job is to create a COMPLETE, ACTIONABLE day-by-day travel plan that integra
 - If car rental is recommended → Include pickup on Day 1 (after airport arrival) and dropoff on last day
 - Include "Getting there:" directions for EVERY activity
 
-### Rule 5: LAST DAY — Include hotel checkout and departure logistics
-- Start with checking out of {hotel_name_for_prompt}
-- If return flight data available, include getting to the airport and flight details
-- Include luggage storage options if there's time before the flight
+### Rule 5: LAST DAY — MANDATORY departure logistics (DO NOT SKIP THIS DAY)
+- This is the MOST IMPORTANT day to get right. You MUST include ALL of these steps:
+- Step 1: "[Check-out time from hotel data] - Check out of {hotel_name_for_prompt}, store luggage at front desk if needed"
+- Step 2: If time before flight → plan a morning activity nearby (light sightseeing, café, shopping)
+- Step 3: "[Time] - Travel from {hotel_name_for_prompt} to airport [explain how: taxi/metro/shuttle with cost estimate]"
+- Step 4: "[Time] - Arrive at airport (recommend arriving 2-3 hours before international, 1.5 hours domestic)"
+- Step 5: "[Time] - Departure flight back to {origin}" with estimated arrival time
+- Step 6: Include "Getting home from airport" tip (taxi/transit from arrival airport)
+- If car was rented: include car dropoff at the airport BEFORE check-in
+- NEVER end the plan abruptly — the last day MUST be as detailed as Day 1
 
 ---
 
@@ -685,13 +693,20 @@ Passengers: {passengers}
 
 (Continue for ALL {num_nights + 1} days, using remaining restaurants from the list)
 
-## Day {num_nights + 1}: Departure ({return_date or departure_date})
-**Weather: [condition]**
+## Day {num_nights + 1}: Departure from {destination} ({return_date or departure_date})
+**Weather: [condition, high/low temp]**
 
-[Check-out time] - Check out of {hotel_name_for_prompt or 'hotel'}
-[Time] - [Morning activity if time allows]
-[Time] - Travel to airport [explain how with cost]
-[Time] - Departure flight
+{hotel_checkout or '11:00 AM'} - Check out of {hotel_name_for_prompt or 'hotel'}, [address]. Store luggage at front desk.
+[Time] - [Quick morning activity near hotel — café, last-minute shopping, park walk] (~$cost)
+  → Getting there: [walking distance from hotel]
+[Time] - Pick up luggage from {hotel_name_for_prompt or 'hotel'}
+[Time] - Travel to [Airport Name] [explain how: taxi/metro/shuttle from hotel with cost] (~$cost)
+  → Tip: Allow [X] hours for airport transit and check-in
+[Time] - Arrive at airport, check in for flight back to {origin}
+[Time] - Estimated departure (based on typical evening/afternoon return flights)
+[Time] - Arrive back in {origin}
+  → Getting home: [taxi/metro/ride-share from arrival airport]
+**Day cost estimate: $X**
 
 ## Local Events to Catch
 (Events happening during the travel dates)
