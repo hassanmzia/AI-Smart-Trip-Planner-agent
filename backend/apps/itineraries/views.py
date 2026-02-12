@@ -41,44 +41,90 @@ class ItineraryViewSet(viewsets.ModelViewSet):
         """Generate markdown-formatted itinerary text from database model"""
         lines = []
 
-        # Title and metadata
+        # Title
         lines.append(f"# {itinerary.title or itinerary.destination}")
-        lines.append(f"\n**Destination:** {itinerary.destination}")
-        lines.append(f"**Dates:** {itinerary.start_date} to {itinerary.end_date}")
-        lines.append(f"**Budget:** ${itinerary.estimated_budget or 0}")
         lines.append("")
 
         # Add itinerary overview if available
         if itinerary.description:
-            lines.append("## Overview")
+            lines.append("## Trip Overview")
             lines.append(itinerary.description)
             lines.append("")
 
         # Day-by-day itinerary
         days = itinerary.days.all().order_by('day_number')
-        for day in days:
-            lines.append(f"## Day {day.day_number}: {day.title or 'Activities'}")
-            if day.notes:
-                lines.append(day.notes)
+        if days.exists():
+            for day in days:
+                day_label = day.title or "Activities"
+                date_str = ""
+                if day.date:
+                    date_str = f" ({day.date.strftime('%A, %B %d, %Y')})"
+                lines.append(f"## Day {day.day_number}: {day_label}{date_str}")
+                lines.append("")
 
-            # Add items for this day
-            items = day.items.all().order_by('order', 'start_time')
-            for item in items:
-                if item.start_time:
-                    time_str = item.start_time.strftime('%I:%M %p')
-                    lines.append(f"{time_str} - {item.title}")
+                if day.notes:
+                    lines.append(day.notes)
+                    lines.append("")
+
+                # Group items by type for a nice table
+                items = day.items.all().order_by('order', 'start_time')
+                if items.exists():
+                    # Build a markdown table for the day's items
+                    lines.append("| Time | Type | Activity | Location | Cost |")
+                    lines.append("|------|------|----------|----------|------|")
+                    for item in items:
+                        time_str = item.start_time.strftime('%I:%M %p') if item.start_time else "Flexible"
+                        item_type = item.item_type.replace('_', ' ').title() if item.item_type else ""
+                        title = item.title or ""
+                        if item.description:
+                            title += f" - {item.description}"
+                        location = item.location_name or ""
+                        if item.location_address and item.location_address != item.location_name:
+                            location += f" ({item.location_address})" if location else item.location_address
+                        cost = f"${item.estimated_cost:.0f}" if item.estimated_cost else "-"
+                        lines.append(f"| {time_str} | {item_type} | {title} | {location} | {cost} |")
+                    lines.append("")
+
+                    # Also add any items with URLs as references
+                    url_items = [item for item in items if item.url]
+                    if url_items:
+                        lines.append("### Booking Links")
+                        for item in url_items:
+                            lines.append(f"- {item.title}: {item.url}")
+                        lines.append("")
+
+                    # Day cost summary
+                    day_costs = [item.estimated_cost for item in items if item.estimated_cost]
+                    if day_costs:
+                        lines.append(f"**Day {day.day_number} Estimated Cost:** ${sum(day_costs):.0f}")
+                        lines.append("")
                 else:
-                    lines.append(f"- {item.title}")
+                    lines.append("No activities planned yet for this day.")
+                    lines.append("")
 
-                if item.description:
-                    lines.append(f"  {item.description}")
-
-                if item.location_name:
-                    lines.append(f"  📍 {item.location_name}")
-
+        # Budget Summary
+        total_cost = 0
+        for day in days:
+            for item in day.items.all():
                 if item.estimated_cost:
-                    lines.append(f"  💰 ${item.estimated_cost}")
+                    total_cost += float(item.estimated_cost)
 
+        if total_cost > 0:
+            lines.append("## Budget Summary")
+            budget_val = float(itinerary.estimated_budget) if itinerary.estimated_budget else 0
+            lines.append(f"- **Total Estimated Cost:** ${total_cost:.0f} {itinerary.currency or 'USD'}")
+            if budget_val > 0:
+                lines.append(f"- **Planned Budget:** ${budget_val:.0f} {itinerary.currency or 'USD'}")
+                remaining = budget_val - total_cost
+                if remaining >= 0:
+                    lines.append(f"- **Remaining Budget:** ${remaining:.0f}")
+                else:
+                    lines.append(f"- **Over Budget By:** ${abs(remaining):.0f}")
+            lines.append("")
+
+        # Travelers info
+        if itinerary.number_of_travelers and itinerary.number_of_travelers > 0:
+            lines.append(f"**Travelers:** {itinerary.number_of_travelers}")
             lines.append("")
 
         return "\n".join(lines)

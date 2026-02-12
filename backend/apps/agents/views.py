@@ -264,54 +264,137 @@ class AgentLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 def _synthesize_narrative(*, result, origin, destination, departure_date,
                          return_date, passengers, budget, cuisine):
-    """Use LLM to generate a day-by-day narrative itinerary from search results."""
+    """Use LLM to generate a day-by-day narrative itinerary from all agent results."""
     from langchain_openai import ChatOpenAI
     from langchain.schema import HumanMessage
 
     rec = result.get('recommendation', {})
 
-    # Build context from search results
+    # ── Flight information ──
     flight_summary = ''
     if rec.get('recommended_flight'):
         f = rec['recommended_flight']
         flight_summary = (
-            f"Recommended Flight: {f.get('airline', '')} {f.get('flight_number', '')} "
+            f"Best Flight: {f.get('airline', '')} {f.get('flight_number', '')} "
             f"from {f.get('departure_airport_code', origin)} to {f.get('arrival_airport_code', destination)}, "
             f"${f.get('price', 'N/A')}, {f.get('stops', 0)} stops, "
-            f"departs {f.get('departure_time', '')}, arrives {f.get('arrival_time', '')}"
+            f"departs {f.get('departure_time', '')}, arrives {f.get('arrival_time', '')}, "
+            f"duration: {f.get('duration', 'N/A')} min, class: {f.get('travel_class', 'Economy')}"
+        )
+    if rec.get('alternative_flight'):
+        af = rec['alternative_flight']
+        flight_summary += (
+            f"\nAlternative Flight: {af.get('airline', '')} {af.get('flight_number', '')} "
+            f"${af.get('price', 'N/A')}, {af.get('stops', 0)} stops"
         )
 
+    # ── Hotel information ──
     hotel_summary = ''
     if rec.get('recommended_hotel'):
         h = rec['recommended_hotel']
         hotel_summary = (
-            f"Recommended Hotel: {h.get('name') or h.get('hotel_name', '')}, "
+            f"Top Hotel: {h.get('name') or h.get('hotel_name', '')}, "
             f"${h.get('price') or h.get('price_per_night', 'N/A')}/night, "
             f"{h.get('stars') or h.get('star_rating', '')} stars, "
             f"address: {h.get('address', '')}"
         )
+    # Include top 5 hotel alternatives
+    top_hotels = rec.get('top_5_hotels', [])
+    if top_hotels and len(top_hotels) > 1:
+        hotel_summary += "\nOther Hotel Options:"
+        for idx, h in enumerate(top_hotels[1:4], 2):
+            hotel_summary += (
+                f"\n  {idx}. {h.get('name') or h.get('hotel_name', '')} - "
+                f"${h.get('price') or h.get('price_per_night', 'N/A')}/night, "
+                f"{h.get('stars') or h.get('star_rating', '')} stars"
+            )
 
+    # ── Restaurant information ──
     restaurant_summary = ''
     if rec.get('recommended_restaurant'):
         r = rec['recommended_restaurant']
         restaurant_summary = (
-            f"Recommended Restaurant: {r.get('name', '')}, "
+            f"Top Restaurant: {r.get('name', '')}, "
             f"{r.get('cuisine_type', '')} cuisine, "
             f"${r.get('average_cost_per_person', 'N/A')}/person, "
-            f"rating: {r.get('rating', 'N/A')}"
+            f"rating: {r.get('rating', 'N/A')}/5, "
+            f"address: {r.get('address', '')}"
         )
+    # Include top 5 restaurant alternatives
+    top_restaurants = rec.get('top_5_restaurants', [])
+    if top_restaurants:
+        restaurant_summary += "\nAll Recommended Restaurants:"
+        for idx, r in enumerate(top_restaurants[:5], 1):
+            restaurant_summary += (
+                f"\n  {idx}. {r.get('name', '')} - {r.get('cuisine_type', '')} cuisine, "
+                f"${r.get('average_cost_per_person', 'N/A')}/person, "
+                f"rating: {r.get('rating', 'N/A')}/5, {r.get('address', '')}"
+            )
 
+    # ── Car rental information ──
     car_summary = ''
     if rec.get('recommended_car'):
         c = rec['recommended_car']
         car_summary = (
-            f"Recommended Car: {c.get('rental_company', '')} - {c.get('vehicle', c.get('car_type', ''))}, "
-            f"${c.get('price_per_day', 'N/A')}/day"
+            f"Top Car Rental: {c.get('rental_company', '')} - {c.get('vehicle', c.get('car_type', ''))}, "
+            f"${c.get('price_per_day', 'N/A')}/day, total: ${c.get('total_price', 'N/A')}, "
+            f"rating: {c.get('rating', 'N/A')}"
         )
+    top_cars = rec.get('top_5_cars', [])
+    if top_cars and len(top_cars) > 1:
+        car_summary += "\nOther Car Rental Options:"
+        for idx, c in enumerate(top_cars[1:4], 2):
+            car_summary += (
+                f"\n  {idx}. {c.get('rental_company', '')} - {c.get('car_type', '')}, "
+                f"${c.get('price_per_day', 'N/A')}/day"
+            )
 
-    prompt = f"""Create a detailed day-by-day travel itinerary in markdown format.
+    # ── Budget analysis ──
+    budget_summary = ''
+    budget_analysis = rec.get('budget_analysis', {})
+    total_cost = rec.get('total_estimated_cost')
+    if total_cost:
+        budget_summary = f"Total Estimated Trip Cost: ${total_cost}"
+    if budget_analysis:
+        cheapest = budget_analysis.get('cheapest flight', {})
+        if cheapest:
+            budget_summary += f"\nCheapest flight: ${cheapest.get('price', 'N/A')} ({cheapest.get('status', '')})"
 
-**Trip Details:**
+    # ── Weather information (from WeatherTool) ──
+    weather_summary = ''
+    try:
+        from .agent_tools import WeatherTool
+        weather_data = WeatherTool.get_weather(location=destination, date=departure_date)
+        if weather_data and not weather_data.get('error'):
+            weather_summary = (
+                f"Weather at {destination}: {weather_data.get('temperature', 'N/A')}, "
+                f"{weather_data.get('condition', 'N/A')}, "
+                f"humidity: {weather_data.get('humidity', 'N/A')}, "
+                f"wind: {weather_data.get('wind_speed', 'N/A')}"
+            )
+    except Exception as e:
+        logger.debug(f"Weather fetch for narrative: {e}")
+
+    # ── Collect all flight options for context ──
+    all_flights_summary = ''
+    flights_data = result.get('flights', {})
+    if isinstance(flights_data, dict):
+        all_flights = flights_data.get('flights', [])
+        if all_flights:
+            all_flights_summary = f"Total flights found: {len(all_flights)}"
+
+    # ── Collect restaurant search context ──
+    all_restaurants_summary = ''
+    restaurant_data = result.get('restaurants', {})
+    if isinstance(restaurant_data, dict):
+        all_restaurants = restaurant_data.get('restaurants', [])
+        if all_restaurants:
+            all_restaurants_summary = f"Total restaurants found: {len(all_restaurants)}"
+
+    prompt = f"""Create a comprehensive, detailed day-by-day travel itinerary in markdown format.
+You are an expert travel planner creating a real, actionable trip plan.
+
+## Trip Details
 - Origin: {origin}
 - Destination: {destination}
 - Dates: {departure_date} to {return_date or departure_date}
@@ -319,19 +402,55 @@ def _synthesize_narrative(*, result, origin, destination, departure_date,
 - Budget: ${budget or 'flexible'}
 {f'- Cuisine preference: {cuisine}' if cuisine else ''}
 
-**Available Bookings:**
-{flight_summary}
-{hotel_summary}
-{restaurant_summary}
-{car_summary}
+## Flight Options
+{flight_summary or 'No specific flight data available - suggest checking major airlines.'}
+{all_flights_summary}
 
-Please create a practical day-by-day itinerary with:
-1. **Trip Overview** - brief summary
-2. **Day-by-day schedule** - for each day include morning, afternoon, and evening activities with suggested times, places to visit, meals, and estimated costs
-3. **Budget Summary** - breakdown of estimated costs
+## Accommodation
+{hotel_summary or 'No specific hotel data available - suggest checking major hotel booking sites.'}
 
-Use markdown formatting with ## for day headers. Be specific with times and place names.
-Keep it concise but actionable - this is a real travel plan."""
+## Dining Options
+{restaurant_summary or 'No specific restaurant data available - suggest local dining.'}
+{all_restaurants_summary}
+
+## Transportation
+{car_summary or 'No specific car rental data available - suggest public transit or ride-sharing.'}
+
+## Weather & Climate
+{weather_summary or f'Check weather for {destination} closer to travel dates.'}
+
+## Budget Analysis
+{budget_summary or 'No budget analysis available.'}
+
+---
+
+Please create a comprehensive day-by-day itinerary that includes:
+
+1. **Trip Overview** - A brief, exciting summary of the trip highlighting key experiences
+
+2. **Day-by-day schedule** - For EACH day of the trip:
+   - Morning activities with times (e.g., "8:00 AM - Breakfast at [restaurant name]")
+   - Afternoon activities with times (sightseeing, tours, attractions specific to {destination})
+   - Evening activities with times (dinner, entertainment, nightlife)
+   - Include specific place names, famous landmarks, and popular attractions in {destination}
+   - Suggest specific restaurants from the data above for meals
+   - Include estimated costs for each activity
+   - Add transportation notes between activities
+
+3. **Practical Tips** - Local customs, tipping, language, safety tips for {destination}
+
+4. **Budget Summary** - Complete breakdown:
+   - Flights cost
+   - Accommodation cost (per night × number of nights)
+   - Daily food budget
+   - Transportation/car rental
+   - Activities and attractions
+   - Total estimated trip cost vs. planned budget
+
+Use markdown ## for day headings (e.g., "## Day 1: Arrival in {destination}").
+Use specific times like "8:00 AM", "12:30 PM", "7:00 PM".
+Be specific with real place names, real attractions, and real restaurant suggestions for {destination}.
+This should read like a professional travel guide."""
 
     model = ChatOpenAI(
         model=settings.AGENT_CONFIG.get('MODEL', 'gpt-4o-mini'),
