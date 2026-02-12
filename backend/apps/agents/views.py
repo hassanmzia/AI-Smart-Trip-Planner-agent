@@ -883,37 +883,288 @@ def plan_travel(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def chat(request):
     """
-    Chat endpoint for conversational travel planning.
-    
+    NLP-powered conversational travel planning endpoint.
+
+    The LLM extracts travel parameters from natural language, asks follow-up
+    questions when information is missing, and triggers the planning pipeline
+    once the user confirms.
+
     Request body:
     {
-        "message": "I need a cheap flight to Berlin next month",
-        "session_id": "session_abc123" (optional, for continuing a conversation)
+        "message": "I want to fly from NYC to Paris next Friday for a week, budget $3000",
+        "conversation": [                 // previous messages (optional)
+            {"role": "user", "content": "..."},
+            {"role": "assistant", "content": "..."}
+        ],
+        "extracted_params": {...},         // accumulated params from prior turns
+        "confirmed": false                 // set true to trigger planning
+    }
+
+    Response:
+    {
+        "success": true,
+        "reply": "Great! I found these details: ...",
+        "extracted_params": {"origin": "JFK", ...},
+        "params_complete": true,           // all required params present
+        "ready_to_plan": false             // user hasn't confirmed yet
     }
     """
     try:
-        message = request.data.get('message')
-        session_id = request.data.get('session_id')
+        message = request.data.get('message', '')
+        conversation = request.data.get('conversation', [])
+        prev_params = request.data.get('extracted_params', {})
+        confirmed = request.data.get('confirmed', False)
 
-        if not message:
+        if not message and not confirmed:
             return Response({
                 'success': False,
                 'error': 'message is required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # TODO: Implement NLP to extract travel parameters from message
-        # For now, return a helpful response
+        # ── If user confirmed and params are complete → run the planner ──
+        if confirmed and prev_params.get('origin') and prev_params.get('destination') and prev_params.get('departure_date'):
+            from .multi_agent_system import get_travel_system
+            travel_system = get_travel_system()
+
+            p = prev_params
+            result = travel_system.run(
+                user_query=f"Plan a trip from {p['origin']} to {p['destination']}",
+                origin=p['origin'],
+                destination=p['destination'],
+                departure_date=p['departure_date'],
+                return_date=p.get('return_date'),
+                passengers=p.get('passengers', 1),
+                budget=p.get('budget'),
+                cuisine=p.get('cuisine'),
+            )
+
+            # Gather enhanced agent data
+            enhanced_data = {}
+            if result.get('success'):
+                try:
+                    enhanced_data = _gather_enhanced_agent_data(
+                        destination=p['destination'],
+                        origin=p['origin'],
+                        departure_date=p['departure_date'],
+                        return_date=p.get('return_date'),
+                        cuisine=p.get('cuisine'),
+                    )
+                    result['enhanced_data'] = enhanced_data
+                except Exception as e:
+                    logger.warning(f"Enhanced agent data gathering failed: {e}")
+
+            # Generate narrative
+            if result.get('success') and settings.OPENAI_API_KEY:
+                try:
+                    result['itinerary_text'] = _synthesize_narrative(
+                        result=result,
+                        origin=p['origin'],
+                        destination=p['destination'],
+                        departure_date=p['departure_date'],
+                        return_date=p.get('return_date'),
+                        passengers=p.get('passengers', 1),
+                        budget=p.get('budget'),
+                        cuisine=p.get('cuisine'),
+                        enhanced_data=enhanced_data,
+                    )
+                except Exception as e:
+                    logger.error(f"LLM narrative failed: {e}", exc_info=True)
+                    result['itinerary_text'] = (
+                        f"## Trip Overview\n\nAI-planned trip from {p['origin']} to {p['destination']}.\n\n"
+                        f"*Detailed itinerary generation encountered an error. See search results below.*"
+                    )
+
+            return Response({
+                'success': True,
+                'reply': "Your trip is being planned! Here are the results.",
+                'planning_result': result,
+                'extracted_params': prev_params,
+                'params_complete': True,
+                'ready_to_plan': True,
+            })
+
+        # ── Otherwise, use LLM to extract params and chat ──
+        if not settings.OPENAI_API_KEY:
+            return Response({
+                'success': False,
+                'error': 'AI service not configured'
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        from langchain_openai import ChatOpenAI
+        from langchain.schema import HumanMessage, SystemMessage, AIMessage
+
+        model = ChatOpenAI(
+            model=settings.AGENT_CONFIG.get('MODEL', 'gpt-4o-mini'),
+            temperature=0.3,
+            api_key=settings.OPENAI_API_KEY,
+            request_timeout=30,
+        )
+
+        # Build the system prompt for NLP extraction
+        system_prompt = f"""You are a friendly AI travel planning assistant. Your job is to help users plan trips through natural conversation.
+
+You need to extract these travel parameters from the conversation:
+- origin (REQUIRED): departure city or airport code (e.g., "JFK", "New York", "CDG")
+- destination (REQUIRED): arrival city or airport code (e.g., "Paris", "LAX", "Tokyo")
+- departure_date (REQUIRED): in YYYY-MM-DD format. Today is {timezone.now().strftime('%Y-%m-%d')}.
+  If user says "next Friday", "in 2 weeks", etc., calculate the exact date.
+- return_date (optional): in YYYY-MM-DD format. If user says "for 5 days", calculate from departure.
+- passengers (optional, default 1): number of travelers
+- budget (optional): total trip budget in USD (number only)
+- cuisine (optional): preferred cuisine type
+
+PREVIOUSLY EXTRACTED parameters (carry these forward, update if user changes them):
+{json.dumps(prev_params, indent=2) if prev_params else '{{}}'}
+
+RULES:
+1. After each user message, respond with TWO parts separated by "---PARAMS---":
+   Part 1: Your friendly conversational reply to the user
+   Part 2: A JSON object with ALL extracted parameters so far (merge new + previous)
+
+2. If you have origin, destination, and departure_date → tell the user what you understood and ask them to confirm
+3. If required params are missing → ask for them naturally in conversation
+4. For dates: always convert relative dates ("next Monday", "March 15") to YYYY-MM-DD
+5. For cities: keep the city/airport name as-is (the search system handles resolution)
+6. Be concise and helpful. Use a warm, travel-enthusiast tone.
+7. If the user changes a previously extracted parameter, update it.
+
+Example response format:
+"Great choice! Paris is beautiful in spring. When would you like to depart, and from which city?
+---PARAMS---
+{{"destination": "Paris", "origin": "", "departure_date": "", "return_date": "", "passengers": 1, "budget": null, "cuisine": ""}}"
+"""
+
+        # Build conversation messages for LLM
+        messages = [SystemMessage(content=system_prompt)]
+        for msg in conversation:
+            if msg.get('role') == 'user':
+                messages.append(HumanMessage(content=msg['content']))
+            elif msg.get('role') == 'assistant':
+                # Strip the params part if present (only send the conversational part)
+                content = msg['content'].split('---PARAMS---')[0].strip()
+                messages.append(AIMessage(content=content))
+
+        messages.append(HumanMessage(content=message))
+
+        response = model.invoke(messages)
+        full_response = response.content.strip()
+
+        # Parse the response
+        if '---PARAMS---' in full_response:
+            parts = full_response.split('---PARAMS---', 1)
+            reply = parts[0].strip()
+            params_json = parts[1].strip()
+        else:
+            reply = full_response
+            params_json = '{}'
+
+        # Parse extracted parameters
+        try:
+            # Strip markdown code fences if present
+            clean_json = params_json
+            if clean_json.startswith('```'):
+                clean_json = clean_json.split('\n', 1)[1] if '\n' in clean_json else clean_json[3:]
+                if clean_json.endswith('```'):
+                    clean_json = clean_json[:-3]
+                clean_json = clean_json.strip()
+            extracted = json.loads(clean_json)
+        except json.JSONDecodeError:
+            extracted = prev_params
+
+        # Merge with previous params (new values override, but don't blank out existing)
+        merged = {**prev_params}
+        for key, value in extracted.items():
+            if value is not None and value != '' and value != 0:
+                merged[key] = value
+
+        # Check if all required params are present
+        params_complete = bool(
+            merged.get('origin') and
+            merged.get('destination') and
+            merged.get('departure_date')
+        )
+
         return Response({
             'success': True,
-            'message': 'Chat interface coming soon! Please use the search form for now.',
-            'suggestion': 'Use the /api/agents/plan endpoint with specific origin, destination, and dates.'
-        }, status=status.HTTP_200_OK)
+            'reply': reply,
+            'extracted_params': merged,
+            'params_complete': params_complete,
+            'ready_to_plan': False,
+        })
 
     except Exception as e:
+        logger.error(f"Chat endpoint error: {e}", exc_info=True)
         return Response({
             'success': False,
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def text_to_speech(request):
+    """
+    Convert text to speech using ElevenLabs API.
+
+    Request body:
+    {
+        "text": "The text to convert to speech",
+        "voice_id": "optional voice ID (default: Rachel)"
+    }
+
+    Returns: audio/mpeg binary stream
+    """
+    import requests as http_requests
+
+    text = request.data.get('text', '')
+    if not text:
+        return Response({'error': 'text is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    api_key = settings.ELEVENLABS_API_KEY
+    if not api_key:
+        return Response({'error': 'ElevenLabs API key not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    voice_id = request.data.get('voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel voice
+
+    try:
+        el_response = http_requests.post(
+            f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}',
+            headers={
+                'Accept': 'audio/mpeg',
+                'Content-Type': 'application/json',
+                'xi-api-key': api_key,
+            },
+            json={
+                'text': text[:5000],  # Limit text length
+                'model_id': 'eleven_monolingual_v1',
+                'voice_settings': {
+                    'stability': 0.5,
+                    'similarity_boost': 0.75,
+                },
+            },
+            timeout=30,
+        )
+
+        if el_response.status_code == 200:
+            from django.http import HttpResponse as DjangoHttpResponse
+            response = DjangoHttpResponse(
+                el_response.content,
+                content_type='audio/mpeg',
+            )
+            response['Content-Disposition'] = 'inline; filename="speech.mp3"'
+            return response
+        else:
+            logger.warning(f"ElevenLabs API error: {el_response.status_code} {el_response.text[:200]}")
+            return Response(
+                {'error': f'ElevenLabs API error: {el_response.status_code}'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+    except http_requests.Timeout:
+        return Response({'error': 'TTS request timed out'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        logger.error(f"TTS error: {e}", exc_info=True)
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
