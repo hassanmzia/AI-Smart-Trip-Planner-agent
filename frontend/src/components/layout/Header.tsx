@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu, Transition } from '@headlessui/react';
 import {
@@ -7,6 +7,7 @@ import {
   SunIcon,
   MoonIcon,
   Bars3Icon,
+  XMarkIcon,
   ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,13 +15,13 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { ROUTES } from '@/utils/constants';
 import { getTheme, toggleTheme } from '@/utils/helpers';
 import Button from '@/components/common/Button';
-import { useState } from 'react';
 
 const Header = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const [theme, setTheme] = useState(getTheme());
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleThemeToggle = () => {
     toggleTheme();
@@ -382,11 +383,54 @@ const Header = () => {
             )}
 
             {/* Mobile menu button */}
-            <button className="md:hidden p-2 text-gray-500 dark:text-gray-400">
-              <Bars3Icon className="h-6 w-6" />
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              {mobileMenuOpen ? (
+                <XMarkIcon className="h-6 w-6" />
+              ) : (
+                <Bars3Icon className="h-6 w-6" />
+              )}
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-gray-200 dark:border-gray-700 py-3 space-y-1">
+            <Link
+              to={ROUTES.AI_PLANNER}
+              onClick={() => setMobileMenuOpen(false)}
+              className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+            >
+              🤖 AI Planner
+            </Link>
+
+            <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Search</div>
+            <Link to={ROUTES.FLIGHT_SEARCH} onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">✈️ Flights</Link>
+            <Link to={ROUTES.HOTEL_SEARCH} onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🏨 Hotels</Link>
+            <Link to="/cars" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🚙 Car Rentals</Link>
+
+            <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Explore</div>
+            <Link to="/attractions" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🗺️ Attractions</Link>
+            <Link to="/restaurants" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🍽️ Restaurants</Link>
+            <Link to="/shopping" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🛍️ Shopping</Link>
+            <Link to="/events" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🎉 Events</Link>
+
+            <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Travel Info</div>
+            <Link to="/weather" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🌤️ Weather</Link>
+            <Link to="/commute" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🚗 Traffic & Commute</Link>
+            <Link to="/safety" onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">🛡️ Safety</Link>
+
+            <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
+              <Link to={ROUTES.ITINERARY} onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">My Trips</Link>
+              {isAuthenticated && (
+                <Link to={ROUTES.DASHBOARD} onClick={() => setMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50">Dashboard</Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

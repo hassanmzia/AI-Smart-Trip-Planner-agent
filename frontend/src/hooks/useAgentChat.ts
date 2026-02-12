@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as agentService from '@/services/agentService';
 import type { ChatMessage, AgentContext } from '@/types';
@@ -9,6 +9,8 @@ import type { ChatMessage, AgentContext } from '@/types';
 export const useAgentChat = (sessionId?: string) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [context, setContext] = useState<Partial<AgentContext>>({});
+  const contextRef = useRef(context);
+  contextRef.current = context;
 
   // Fetch chat history
   const { data: historyData, isPending: isLoadingHistory } = useQuery({
@@ -26,8 +28,14 @@ export const useAgentChat = (sessionId?: string) => {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: (message: string) => agentService.sendChatMessage(message, context),
+    mutationFn: (message: string) => agentService.sendChatMessage(message, contextRef.current),
+    onSuccess: (data: ChatMessage) => {
+      setMessages((prev) => [...prev, data]);
+    },
   });
+
+  const mutateRef = useRef(sendMessageMutation.mutateAsync);
+  mutateRef.current = sendMessageMutation.mutateAsync;
 
   const sendMessage = useCallback(
     async (message: string) => {
@@ -42,9 +50,9 @@ export const useAgentChat = (sessionId?: string) => {
       setMessages((prev) => [...prev, userMessage]);
 
       // Send to agent
-      await sendMessageMutation.mutateAsync(message);
+      await mutateRef.current(message);
     },
-    [sendMessageMutation, context]
+    []
   );
 
   const clearMessages = useCallback(() => {
