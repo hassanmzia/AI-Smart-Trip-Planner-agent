@@ -190,6 +190,17 @@ class ProfessionalPDFGenerator:
         flush_bullets()
         return blocks
 
+    # Item type colors for badges
+    ITEM_TYPE_COLORS = {
+        'flight': '#3b82f6',      # blue
+        'hotel': '#8b5cf6',       # purple
+        'restaurant': '#f59e0b',  # amber
+        'attraction': '#10b981',  # green
+        'activity': '#06b6d4',    # cyan
+        'transport': '#6366f1',   # indigo
+        'note': '#6b7280',        # gray
+    }
+
     @classmethod
     def create_itinerary_pdf(
         cls,
@@ -246,9 +257,15 @@ class ProfessionalPDFGenerator:
 
         # Define custom styles
         title_style = ParagraphStyle(
-            "Title", parent=styles["Heading1"],
-            fontSize=20, textColor=cls.INK,
-            alignment=TA_CENTER, spaceAfter=6, fontName="Helvetica-Bold"
+            "CoverTitle", parent=styles["Heading1"],
+            fontSize=22, textColor=cls.INK,
+            alignment=TA_CENTER, spaceAfter=4, fontName="Helvetica-Bold"
+        )
+
+        subtitle_style = ParagraphStyle(
+            "CoverSubtitle", parent=styles["Normal"],
+            fontSize=11, textColor=cls.MUTED,
+            alignment=TA_CENTER, spaceAfter=12
         )
 
         meta_style = ParagraphStyle(
@@ -259,49 +276,72 @@ class ProfessionalPDFGenerator:
 
         h2_style = ParagraphStyle(
             "H2", parent=styles["Heading2"],
-            fontSize=12, textColor=primary_dark,
-            spaceBefore=10, spaceAfter=4, fontName="Helvetica-Bold"
+            fontSize=13, textColor=primary_dark,
+            spaceBefore=14, spaceAfter=6, fontName="Helvetica-Bold"
         )
 
         h3_style = ParagraphStyle(
             "H3", parent=styles["Heading3"],
-            fontSize=10.5, textColor=cls.INK,
-            spaceBefore=8, spaceAfter=3, fontName="Helvetica-Bold"
+            fontSize=11, textColor=cls.INK,
+            spaceBefore=10, spaceAfter=4, fontName="Helvetica-Bold"
+        )
+
+        day_heading_style = ParagraphStyle(
+            "DayHeading", parent=styles["Heading2"],
+            fontSize=12, textColor=colors.white,
+            spaceBefore=0, spaceAfter=0, fontName="Helvetica-Bold",
         )
 
         body_style = ParagraphStyle(
             "Body", parent=styles["Normal"],
-            fontSize=9, leading=12, textColor=cls.INK,
+            fontSize=9, leading=13, textColor=cls.INK,
             alignment=TA_JUSTIFY, spaceAfter=4
         )
 
         bullet_style = ParagraphStyle(
             "Bullet", parent=body_style,
-            leftIndent=12, bulletIndent=6
+            leftIndent=14, bulletIndent=6
+        )
+
+        small_style = ParagraphStyle(
+            "Small", parent=styles["Normal"],
+            fontSize=8, leading=10, textColor=cls.MUTED,
+            spaceAfter=2
+        )
+
+        bold_body_style = ParagraphStyle(
+            "BoldBody", parent=body_style,
+            fontName="Helvetica-Bold"
+        )
+
+        # Table cell style for wrapping text
+        cell_style = ParagraphStyle(
+            "CellStyle", parent=styles["Normal"],
+            fontSize=8, leading=10, textColor=cls.INK,
+        )
+
+        cell_bold_style = ParagraphStyle(
+            "CellBoldStyle", parent=cell_style,
+            fontName="Helvetica-Bold",
         )
 
         story = []
 
-        # Cover page
+        # ─── Cover Section ───
+        story.append(Spacer(1, 10))
         story.append(Paragraph(cls._escape(destination or "Trip Itinerary"), title_style))
 
-        meta_text = f"{dates}  •  From {origin}  •  Budget ${budget:,}"
         if user_name:
-            meta_text = f"Prepared for {user_name}\n{meta_text}"
+            story.append(Paragraph(f"Prepared for {cls._escape(user_name)}", subtitle_style))
 
-        story.append(Paragraph(cls._escape(meta_text), meta_style))
-
-        # Metadata table
+        # Metadata table (more compact, professional)
         meta_rows = [
             ["Dates", dates],
-            ["Origin", origin],
             ["Budget", f"${budget:,} USD"],
             ["Generated", datetime.now().strftime("%B %d, %Y")],
         ]
-        if user_name:
-            meta_rows.insert(0, ["Traveler", user_name])
 
-        meta_table = Table(meta_rows, colWidths=[1.3*inch, 5.7*inch])
+        meta_table = Table(meta_rows, colWidths=[1.2*inch, 5.8*inch])
         meta_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (0,-1), light_bg),
             ("TEXTCOLOR", (0,0), (-1,-1), cls.INK),
@@ -309,11 +349,12 @@ class ProfessionalPDFGenerator:
             ("FONTSIZE", (0,0), (-1,-1), 9),
             ("GRID", (0,0), (-1,-1), 0.6, cls.BORDER),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("TOPPADDING", (0,0), (-1,-1), 6),
-            ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+            ("TOPPADDING", (0,0), (-1,-1), 5),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+            ("LEFTPADDING", (0,0), (-1,-1), 8),
         ]))
         story.append(meta_table)
-        story.append(Spacer(1, 10))
+        story.append(Spacer(1, 8))
 
         # QR Code (if requested)
         if include_qr and qr_url:
@@ -338,7 +379,7 @@ class ProfessionalPDFGenerator:
             except ImportError:
                 pass  # Skip QR code if library not available
 
-        # Parse and render itinerary blocks
+        # ─── Parse and Render Itinerary ───
         blocks = cls._parse_itinerary(itinerary_text)
 
         current_day_title = None
@@ -350,22 +391,62 @@ class ProfessionalPDFGenerator:
                 return
 
             clean_title = cls._strip_md(current_day_title)
-            story.append(Paragraph(cls._escape(clean_title), h3_style))
 
-            day_tbl = Table(current_day_rows, colWidths=[1.2*inch, 5.8*inch], hAlign="LEFT")
-            day_tbl.setStyle(TableStyle([
-                ("BACKGROUND", (0,0), (-1,0), primary_dark),
-                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-                ("FONTSIZE", (0,0), (-1,-1), 9),
-                ("GRID", (0,0), (-1,-1), 0.6, cls.BORDER),
-                ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, light_bg]),
-                ("VALIGN", (0,0), (-1,-1), "TOP"),
+            # Day heading with colored banner
+            day_banner_data = [[Paragraph(cls._escape(clean_title), day_heading_style)]]
+            day_banner = Table(day_banner_data, colWidths=[7.0*inch], hAlign="LEFT")
+            day_banner.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,-1), primary_dark),
                 ("TOPPADDING", (0,0), (-1,-1), 6),
                 ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+                ("LEFTPADDING", (0,0), (-1,-1), 10),
+                ("ROUNDEDCORNERS", [4, 4, 0, 0]),
             ]))
-            story.append(day_tbl)
             story.append(Spacer(1, 8))
+            story.append(day_banner)
+
+            if len(current_day_rows) > 1:  # Has data rows beyond header
+                # Use Paragraph for wrapping in table cells
+                wrapped_rows = []
+                for i, row in enumerate(current_day_rows):
+                    if i == 0:
+                        # Header row - use bold style
+                        wrapped_rows.append([
+                            Paragraph(cls._escape(str(c)), cell_bold_style) for c in row
+                        ])
+                    else:
+                        wrapped_rows.append([
+                            Paragraph(cls._escape(str(c)), cell_style) for c in row
+                        ])
+
+                num_cols = len(current_day_rows[0])
+
+                # Adjust column widths based on number of columns
+                if num_cols == 5:
+                    col_widths = [0.8*inch, 0.7*inch, 2.6*inch, 1.7*inch, 0.7*inch]
+                elif num_cols == 2:
+                    col_widths = [1.2*inch, 5.8*inch]
+                else:
+                    available = 7.0 * inch
+                    col_widths = [available / num_cols] * num_cols
+
+                day_tbl = Table(wrapped_rows, colWidths=col_widths, hAlign="LEFT",
+                                repeatRows=1)
+                day_tbl.setStyle(TableStyle([
+                    ("BACKGROUND", (0,0), (-1,0), primary),
+                    ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                    ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0,0), (-1,-1), 8),
+                    ("GRID", (0,0), (-1,-1), 0.5, cls.BORDER),
+                    ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, light_bg]),
+                    ("VALIGN", (0,0), (-1,-1), "TOP"),
+                    ("TOPPADDING", (0,0), (-1,-1), 5),
+                    ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+                    ("LEFTPADDING", (0,0), (-1,-1), 6),
+                    ("RIGHTPADDING", (0,0), (-1,-1), 4),
+                ]))
+                story.append(day_tbl)
+            story.append(Spacer(1, 6))
 
             current_day_title = None
             current_day_rows = []
@@ -373,13 +454,20 @@ class ProfessionalPDFGenerator:
         for btype, content in blocks:
 
             # Flush day table before starting new section
-            if current_day_title and btype in ("heading", "subheading", "table", "title"):
+            if current_day_title and btype in ("heading", "subheading", "title"):
                 flush_day_inline()
 
             if btype == "day_heading":
                 flush_day_inline()
                 current_day_title = content
                 current_day_rows = [["Time", "Activity"]]
+                continue
+
+            # Tables within a day context get absorbed
+            if btype == "table" and current_day_title:
+                # Replace the default header row with the table's header
+                if content:
+                    current_day_rows = [content[0]] + content[1:]
                 continue
 
             # Handle time-based activities within day
@@ -397,13 +485,13 @@ class ProfessionalPDFGenerator:
 
             # Add paragraphs to day table
             if btype == "paragraph" and current_day_title:
-                current_day_rows.append(["Flexible", cls._strip_md(content.strip())])
+                current_day_rows.append(["", cls._strip_md(content.strip())])
                 continue
 
             # Add bullets to day table
             if btype == "bullets" and current_day_title:
                 for item in content:
-                    current_day_rows.append(["Flexible", cls._strip_md(item)])
+                    current_day_rows.append(["", cls._strip_md(item)])
                 continue
 
             # Render standalone blocks
@@ -421,7 +509,13 @@ class ProfessionalPDFGenerator:
 
             elif btype == "paragraph":
                 clean_p = cls._strip_md(content)
-                story.append(Paragraph(cls._escape(clean_p).replace("\n", "<br/>"), body_style))
+                # Handle bold text in paragraphs
+                if clean_p.startswith("Day ") and "Estimated Cost" in clean_p:
+                    story.append(Paragraph(cls._escape(clean_p), bold_body_style))
+                elif clean_p.startswith("Travelers:") or clean_p.startswith("Total Estimated") or clean_p.startswith("Planned Budget") or clean_p.startswith("Remaining Budget") or clean_p.startswith("Over Budget"):
+                    story.append(Paragraph(cls._escape(clean_p), bold_body_style))
+                else:
+                    story.append(Paragraph(cls._escape(clean_p).replace("\n", "<br/>"), body_style))
 
             elif btype == "bullets":
                 for item in content:
@@ -431,20 +525,43 @@ class ProfessionalPDFGenerator:
             elif btype == "table":
                 rows = content
                 if rows:
-                    clean_rows = [
-                        [cls._strip_md(c) for c in row]
-                        for row in rows
-                    ]
-                    tbl = Table(clean_rows, hAlign="LEFT")
+                    # Use Paragraph for text wrapping in tables
+                    num_cols = len(rows[0]) if rows else 0
+                    wrapped_rows = []
+                    for i, row in enumerate(rows):
+                        if i == 0:
+                            wrapped_rows.append([
+                                Paragraph(cls._escape(cls._strip_md(c)), cell_bold_style)
+                                for c in row
+                            ])
+                        else:
+                            wrapped_rows.append([
+                                Paragraph(cls._escape(cls._strip_md(c)), cell_style)
+                                for c in row
+                            ])
+
+                    # Calculate column widths based on content
+                    if num_cols == 5:
+                        col_widths = [0.8*inch, 0.7*inch, 2.6*inch, 1.7*inch, 0.7*inch]
+                    elif num_cols == 2:
+                        col_widths = [1.2*inch, 5.8*inch]
+                    else:
+                        available = 7.0 * inch
+                        col_widths = [available / num_cols] * num_cols
+
+                    tbl = Table(wrapped_rows, colWidths=col_widths, hAlign="LEFT",
+                                repeatRows=1)
                     tbl.setStyle(TableStyle([
                         ("BACKGROUND", (0,0), (-1,0), primary),
                         ("TEXTCOLOR", (0,0), (-1,0), colors.white),
                         ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-                        ("FONTSIZE", (0,0), (-1,-1), 9),
-                        ("GRID", (0,0), (-1,-1), 0.6, cls.BORDER),
+                        ("FONTSIZE", (0,0), (-1,-1), 8),
+                        ("GRID", (0,0), (-1,-1), 0.5, cls.BORDER),
                         ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, light_bg]),
-                        ("TOPPADDING", (0,0), (-1,-1), 6),
-                        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+                        ("VALIGN", (0,0), (-1,-1), "TOP"),
+                        ("TOPPADDING", (0,0), (-1,-1), 5),
+                        ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+                        ("LEFTPADDING", (0,0), (-1,-1), 6),
                     ]))
                     story.append(Spacer(1, 6))
                     story.append(tbl)
@@ -452,6 +569,18 @@ class ProfessionalPDFGenerator:
 
         # Flush any remaining day table
         flush_day_inline()
+
+        # Footer note
+        story.append(Spacer(1, 16))
+        footer_style = ParagraphStyle(
+            "Footer", parent=styles["Normal"],
+            fontSize=7, textColor=cls.MUTED,
+            alignment=TA_CENTER,
+        )
+        story.append(Paragraph(
+            f"Generated by AI Smart Flight Agent on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}",
+            footer_style
+        ))
 
         # Build PDF
         doc.build(story)
