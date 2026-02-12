@@ -23,6 +23,8 @@ class Itinerary(models.Model):
 
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    ai_narrative = models.TextField(blank=True, default='',
+                                    help_text='Full AI-generated day-by-day narrative for PDF export')
 
     destination = models.CharField(max_length=200)
     start_date = models.DateField()

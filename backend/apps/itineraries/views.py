@@ -38,7 +38,17 @@ class ItineraryViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
     def _generate_itinerary_text(self, itinerary):
-        """Generate markdown-formatted itinerary text from database model"""
+        """Generate markdown-formatted itinerary text from database model.
+
+        If the itinerary has a stored AI narrative (from the AI planner),
+        use that directly for full-fidelity PDF export including all
+        details like Getting-there directions, restaurant names, weather,
+        safety tips, budget summary, and packing list.
+        """
+        # Use stored AI narrative if available — it has the full rich plan
+        if itinerary.ai_narrative and itinerary.ai_narrative.strip():
+            return itinerary.ai_narrative
+
         lines = []
 
         # Title

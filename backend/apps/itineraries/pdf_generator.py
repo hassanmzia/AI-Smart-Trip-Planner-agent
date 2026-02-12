@@ -182,6 +182,13 @@ class ProfessionalPDFGenerator:
                 i += 1
                 continue
 
+            # "→ Getting there:" direction lines (sub-items within a day)
+            if line.startswith("→") or line.startswith("→"):
+                flush_paras()
+                blocks.append(("direction_line", line.lstrip("→ ").strip()))
+                i += 1
+                continue
+
             # Regular paragraph
             current_paras.append(line)
             i += 1
@@ -483,6 +490,11 @@ class ProfessionalPDFGenerator:
                     current_day_rows.append(["Flexible", cls._strip_md(content.strip())])
                 continue
 
+            # Direction lines within a day (→ Getting there: ...)
+            if btype == "direction_line" and current_day_title:
+                current_day_rows.append(["", f"  → {cls._strip_md(content.strip())}"])
+                continue
+
             # Add paragraphs to day table
             if btype == "paragraph" and current_day_title:
                 current_day_rows.append(["", cls._strip_md(content.strip())])
@@ -516,6 +528,10 @@ class ProfessionalPDFGenerator:
                     story.append(Paragraph(cls._escape(clean_p), bold_body_style))
                 else:
                     story.append(Paragraph(cls._escape(clean_p).replace("\n", "<br/>"), body_style))
+
+            elif btype == "direction_line":
+                clean_d = cls._strip_md(content)
+                story.append(Paragraph(f"→ {cls._escape(clean_d)}", small_style))
 
             elif btype == "bullets":
                 for item in content:
