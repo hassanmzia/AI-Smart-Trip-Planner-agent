@@ -5,7 +5,8 @@ from .views import (
     AgentExecutionViewSet,
     AgentLogViewSet,
     plan_travel,
-    chat
+    chat,
+    text_to_speech,
 )
 
 app_name = 'agents'
@@ -19,4 +20,5 @@ urlpatterns = [
     path('', include(router.urls)),
     path('plan', plan_travel, name='plan_travel'),
     path('chat', chat, name='chat'),
+    path('tts', text_to_speech, name='text_to_speech'),
 ]

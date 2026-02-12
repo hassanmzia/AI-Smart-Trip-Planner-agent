@@ -12,6 +12,9 @@ import {
   createItineraryDay,
   createItineraryItem,
 } from '@/services/itineraryService';
+import TravelChat from '@/components/TravelChat';
+
+type OrderMode = 'form' | 'chat' | 'voice';
 
 interface ParsedActivity {
   time: string | undefined;
@@ -115,6 +118,9 @@ const AIPlannerPage = () => {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<any>(null);
 
+  // Order mode: form, chat, or voice
+  const [orderMode, setOrderMode] = useState<OrderMode>('form');
+
   // Form state
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
@@ -123,6 +129,9 @@ const AIPlannerPage = () => {
   const [passengers, setPassengers] = useState(1);
   const [budget, setBudget] = useState('');
   const [cuisine, setCuisine] = useState('');
+
+  // Chat-extracted params (synced from TravelChat)
+  const [chatParams, setChatParams] = useState<any>({});
 
   const handlePlan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,6 +169,24 @@ const AIPlannerPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle results from NLP chat / voice planning
+  const handleChatPlanReady = (planResult: any) => {
+    // Merge chat result into the result state just like form result
+    const merged = { ...planResult, success: planResult.success !== false };
+    setResult(merged);
+
+    // Sync form fields from chat params for save
+    if (chatParams.origin) setOrigin(chatParams.origin);
+    if (chatParams.destination) setDestination(chatParams.destination);
+    if (chatParams.departure_date) setDepartureDate(chatParams.departure_date);
+    if (chatParams.return_date) setReturnDate(chatParams.return_date);
+    if (chatParams.passengers) setPassengers(chatParams.passengers);
+    if (chatParams.budget) setBudget(String(chatParams.budget));
+    if (chatParams.cuisine) setCuisine(chatParams.cuisine);
+
+    showSuccess('AI travel planning complete!');
   };
 
   const handleSaveAsItinerary = async () => {
@@ -328,103 +355,178 @@ const AIPlannerPage = () => {
       <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
         🤖 AI Travel Planner
       </h1>
-      <p className="text-gray-600 dark:text-gray-400 mb-8">
+      <p className="text-gray-600 dark:text-gray-400 mb-4">
         Let our AI agents find and evaluate the best travel options for you
       </p>
 
-      {/* Planning Form */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Travel Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePlan} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Origin (Airport Code)"
-                value={origin}
-                onChange={(e) => setOrigin(e.target.value)}
-                placeholder="e.g., JFK, CDG, LHR"
-                required
-              />
-              <Input
-                label="Destination (Airport Code)"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="e.g., LAX, BER, NRT"
-                required
-              />
-            </div>
+      {/* ── 3 Order Modes Switcher ── */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setOrderMode('form')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            orderMode === 'form'
+              ? 'bg-primary-600 text-white shadow-md'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-primary-400'
+          }`}
+        >
+          📝 Form
+        </button>
+        <button
+          onClick={() => setOrderMode('chat')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            orderMode === 'chat'
+              ? 'bg-primary-600 text-white shadow-md'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-primary-400'
+          }`}
+        >
+          💬 Chat
+        </button>
+        <button
+          onClick={() => setOrderMode('voice')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+            orderMode === 'voice'
+              ? 'bg-primary-600 text-white shadow-md'
+              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:border-primary-400'
+          }`}
+        >
+          🎙️ Voice
+        </button>
+      </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Departure Date"
-                type="date"
-                value={departureDate}
-                onChange={(e) => setDepartureDate(e.target.value)}
-                required
-              />
-              <Input
-                label="Return Date (Optional)"
-                type="date"
-                value={returnDate}
-                onChange={(e) => setReturnDate(e.target.value)}
-              />
-            </div>
+      {/* ── MODE 1: Traditional Form ── */}
+      {orderMode === 'form' && (
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Travel Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handlePlan} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Origin (Airport Code)"
+                  value={origin}
+                  onChange={(e) => setOrigin(e.target.value)}
+                  placeholder="e.g., JFK, CDG, LHR"
+                  required
+                />
+                <Input
+                  label="Destination (Airport Code)"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  placeholder="e.g., LAX, BER, NRT"
+                  required
+                />
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Passengers"
-                type="number"
-                min="1"
-                value={passengers}
-                onChange={(e) => setPassengers(Number(e.target.value))}
-                required
-              />
-              <Input
-                label="Budget (USD, Optional)"
-                type="number"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="e.g., 500"
-              />
-            </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Departure Date"
+                  type="date"
+                  value={departureDate}
+                  onChange={(e) => setDepartureDate(e.target.value)}
+                  required
+                />
+                <Input
+                  label="Return Date (Optional)"
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Preferred Cuisine (Optional)
-              </label>
-              <select
-                value={cuisine}
-                onChange={(e) => setCuisine(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Passengers"
+                  type="number"
+                  min="1"
+                  value={passengers}
+                  onChange={(e) => setPassengers(Number(e.target.value))}
+                  required
+                />
+                <Input
+                  label="Budget (USD, Optional)"
+                  type="number"
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
+                  placeholder="e.g., 500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Preferred Cuisine (Optional)
+                </label>
+                <select
+                  value={cuisine}
+                  onChange={(e) => setCuisine(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Any Cuisine</option>
+                  <option value="American">American</option>
+                  <option value="Italian">Italian</option>
+                  <option value="Mexican">Mexican</option>
+                  <option value="Chinese">Chinese</option>
+                  <option value="Japanese">Japanese</option>
+                  <option value="Indian">Indian</option>
+                  <option value="Thai">Thai</option>
+                  <option value="French">French</option>
+                  <option value="Mediterranean">Mediterranean</option>
+                  <option value="Seafood">Seafood</option>
+                </select>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                isLoading={loading}
+                disabled={loading}
               >
-                <option value="">Any Cuisine</option>
-                <option value="American">American</option>
-                <option value="Italian">Italian</option>
-                <option value="Mexican">Mexican</option>
-                <option value="Chinese">Chinese</option>
-                <option value="Japanese">Japanese</option>
-                <option value="Indian">Indian</option>
-                <option value="Thai">Thai</option>
-                <option value="French">French</option>
-                <option value="Mediterranean">Mediterranean</option>
-                <option value="Seafood">Seafood</option>
-              </select>
-            </div>
+                {loading ? 'AI Agents Working...' : '🚀 Plan My Trip with AI'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              isLoading={loading}
-              disabled={loading}
-            >
-              {loading ? 'AI Agents Working...' : '🚀 Plan My Trip with AI'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      {/* ── MODE 2: NLP Chat ── */}
+      {orderMode === 'chat' && (
+        <div className="mb-8">
+          <TravelChat
+            onPlanReady={handleChatPlanReady}
+            onParamsExtracted={setChatParams}
+          />
+        </div>
+      )}
+
+      {/* ── MODE 3: Voice Command ── */}
+      {orderMode === 'voice' && (
+        <div className="mb-8">
+          <Card className="border-2 border-dashed border-purple-300 dark:border-purple-700">
+            <CardContent className="py-6 text-center">
+              <div className="text-5xl mb-4">🎙️</div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Voice-Powered Trip Planning
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
+                Speak naturally to plan your trip. The AI will listen, understand your requirements,
+                ask follow-up questions by voice, and create your itinerary.
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mb-4">
+                Uses Web Speech API for listening + ElevenLabs for AI voice responses
+              </p>
+            </CardContent>
+          </Card>
+          <div className="mt-4">
+            <TravelChat
+              onPlanReady={handleChatPlanReady}
+              onParamsExtracted={setChatParams}
+              initialVoiceEnabled={true}
+              key="voice-chat"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Loading State */}
       {loading && (

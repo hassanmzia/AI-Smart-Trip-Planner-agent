@@ -206,6 +206,7 @@ SERP_API_KEY = os.environ.get('SERP_API_KEY', '')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 WEATHER_API_KEY = os.environ.get('WEATHER_API_KEY', '')
+ELEVENLABS_API_KEY = os.environ.get('ELEVENLABS_API_KEY', '')
 
 # Multi-Agent System Configuration
 AGENT_CONFIG = {
