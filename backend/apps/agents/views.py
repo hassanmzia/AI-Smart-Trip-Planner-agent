@@ -10,7 +10,7 @@ import json
 import logging
 import uuid
 
-from .models import AgentSession, AgentExecution, AgentLog
+from .models import AgentSession, AgentExecution, AgentLog, RAGDocument
 from .serializers import (
     AgentSessionSerializer,
     AgentSessionListSerializer,
@@ -18,7 +18,9 @@ from .serializers import (
     AgentExecutionSerializer,
     AgentExecutionListSerializer,
     AgentExecutionCreateSerializer,
-    AgentLogSerializer
+    AgentLogSerializer,
+    RAGDocumentSerializer,
+    RAGDocumentUploadSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -990,11 +992,84 @@ def plan_travel(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class RAGDocumentViewSet(viewsets.ModelViewSet):
+    """
+    API for uploading, listing, and managing RAG documents.
+    Supports PDF, TXT, DOCX, MD, and CSV files.
+    Uploaded files are parsed, chunked, and indexed into ChromaDB
+    so the AI assistant can reference them during chat.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = RAGDocumentSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'scope', 'file_type']
+    search_fields = ['title', 'description']
+    ordering_fields = ['created_at', 'title', 'file_size']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return RAGDocument.objects.all()
+        return RAGDocument.objects.filter(
+            Q(uploaded_by=user) | Q(scope='global')
+        )
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return RAGDocumentUploadSerializer
+        return RAGDocumentSerializer
+
+    def perform_create(self, serializer):
+        doc = serializer.save(uploaded_by=self.request.user)
+        # Process and index the document
+        try:
+            from apps.agents.document_processor import process_and_index_document
+            chunk_count = process_and_index_document(doc)
+            logger.info(f"Document '{doc.title}' uploaded and indexed: {chunk_count} chunks")
+        except Exception as e:
+            logger.error(f"Document processing failed for '{doc.title}': {e}")
+            doc.status = 'failed'
+            doc.error_message = str(e)[:500]
+            doc.save(update_fields=['status', 'error_message'])
+
+    def perform_destroy(self, instance):
+        # Delete ChromaDB chunks before deleting the model
+        try:
+            from apps.agents.document_processor import delete_document_chunks
+            delete_document_chunks(instance)
+        except Exception as e:
+            logger.warning(f"Error cleaning up document chunks: {e}")
+        # Delete the file from storage
+        if instance.file:
+            instance.file.delete(save=False)
+        instance.delete()
+
+    @action(detail=True, methods=['post'])
+    def reindex(self, request, pk=None):
+        """Re-process and re-index a document."""
+        doc = self.get_object()
+        try:
+            from apps.agents.document_processor import process_and_index_document
+            chunk_count = process_and_index_document(doc)
+            return Response({
+                'success': True,
+                'message': f'Document re-indexed with {chunk_count} chunks',
+                'chunk_count': chunk_count,
+            })
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': str(e),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def chat(request):
     """
     Fully conversational AI travel assistant endpoint.
+    Requires authentication so the assistant can access user data.
 
     Handles:
     - Trip planning with NLP parameter extraction
@@ -1095,54 +1170,77 @@ def chat(request):
             request_timeout=45,
         )
 
-        # Fetch user data from DB for authenticated users
+        # ── RAG: Retrieve only the most relevant user data for this query ──
         user_data_section = ''
-        if request.user.is_authenticated:
+        rag_context = ''
+        try:
+            from apps.agents.chat_rag import get_user_data_rag
+
+            user_rag = get_user_data_rag()
+            rag_context = user_rag.retrieve(
+                user=request.user,
+                query=message,
+                n_results=8,
+            )
+            rag_stats = user_rag.get_user_stats(request.user)
+            total_chunks = rag_stats.get('total_chunks', 0)
+
+            # Build user data section from RAG results
+            user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or 'Traveler'
+            user_data_section = f"Logged-in user: {user_name} ({request.user.email})\n"
+
+            if rag_context:
+                user_data_section += (
+                    f"\n--- RELEVANT USER DATA (retrieved via semantic search from {total_chunks} indexed records) ---\n"
+                    f"{rag_context}\n"
+                    f"--- END RELEVANT DATA ---"
+                )
+            else:
+                user_data_section += "User has no bookings or trip plans yet."
+
+        except Exception as e:
+            logger.warning(f"RAG retrieval failed, falling back to basic context: {e}")
+            # Fallback: basic user info without full data dump
             try:
-                from apps.bookings.models import Booking
-                from apps.itineraries.models import Itinerary
-                user_bookings = Booking.objects.filter(user=request.user).order_by('-created_at')[:10]
-                user_itineraries = Itinerary.objects.filter(user=request.user).order_by('-created_at')[:10]
-
-                if user_bookings.exists():
-                    booking_lines = []
-                    for b in user_bookings:
-                        booking_lines.append(
-                            f"  - {b.booking_type} booking: {getattr(b, 'destination', '')} "
-                            f"on {getattr(b, 'departure_date', getattr(b, 'created_at', ''))} "
-                            f"(status: {b.status}, total: ${getattr(b, 'total_amount', 'N/A')})"
-                        )
-                    user_data_section += "\nUser's bookings from our database:\n" + '\n'.join(booking_lines)
-
-                if user_itineraries.exists():
-                    itin_lines = []
-                    for it in user_itineraries:
-                        itin_lines.append(
-                            f"  - \"{it.title}\": {it.destination} "
-                            f"({it.start_date} to {it.end_date}, status: {it.status}, "
-                            f"budget: {it.estimated_budget or 'not set'})"
-                        )
-                    user_data_section += "\nUser's itineraries from our database:\n" + '\n'.join(itin_lines)
-            except Exception as e:
-                logger.debug(f"Could not fetch user data for chat context: {e}")
+                user_name = f"{request.user.first_name or ''} {request.user.last_name or ''}".strip() or 'Traveler'
+                user_data_section = f"Logged-in user: {user_name} ({request.user.email})"
+            except Exception:
+                user_data_section = ''
 
         if user_context:
             user_data_section += f"\nAdditional user context:\n{user_context}"
 
         system_prompt = f"""You are a friendly, knowledgeable AI travel assistant for the AI Smart Flight Agent platform.
-You can help users with ANY travel-related question or task.
+You are talking to an AUTHENTICATED USER. You have access to their real booking data, trip plans, itineraries, and feedback.
+The user data below was retrieved via RAG (semantic search) — it shows the MOST RELEVANT records for the user's current question.
+Always reference their actual data when answering questions about their trips.
 
 ## YOUR CAPABILITIES:
-1. **Trip Planning**: Extract travel parameters and help plan new trips
-2. **Trip Q&A**: Answer questions about the user's existing bookings and itineraries
-3. **Recommendations**: Suggest destinations, restaurants, activities, hotels based on preferences
+1. **Trip Planning**: Extract travel parameters and help plan new trips using our multi-agent AI system
+2. **Trip Q&A**: Answer questions about the user's EXISTING bookings and itineraries (use the RETRIEVED USER DATA below)
+3. **Recommendations**: Suggest destinations, restaurants, activities, hotels based on their preferences and travel history
 4. **Travel Knowledge**: Answer questions about visa requirements, weather, safety, culture, customs
 5. **Budget Advice**: Help users optimize their travel budget and find deals
 6. **Comparison**: Compare destinations, flights, hotels, help users decide
-7. **Future Planning**: Suggest future trip ideas based on user history and preferences
+7. **Future Planning**: Suggest future trip ideas based on user's past trips, feedback, and preferences
+8. **Site Help**: Help users navigate the platform features
 
-## USER DATA (use this to answer questions about their trips):
-{user_data_section if user_data_section else 'No user data available (user may not be logged in).'}
+## PLATFORM FEATURES (mention these when relevant):
+- AI Trip Planner: Plan complete trips with flights, hotels, cars, restaurants
+- Flight Search & Booking: Search and book flights
+- Hotel Search & Booking: Find and book hotels
+- Car Rental: Rent cars at destinations
+- Restaurant Finder: Find restaurants by cuisine
+- Itinerary Builder: Create day-by-day trip plans with PDF export
+- Weather Forecasts: Check weather at destinations
+- Events & Attractions: Discover local events and attractions
+- Safety Info: Get health and safety info for destinations
+- Dashboard: View all bookings and trip plans in one place
+
+## RETRIEVED USER DATA (semantically matched to user's question — THIS IS REAL DATA):
+{user_data_section if user_data_section else 'User has no bookings or trip plans yet.'}
+
+NOTE: The data above is the most relevant subset retrieved from all of the user's records. If the user asks about something not shown above, let them know you can look up more details or suggest they check their Dashboard.
 
 ## TRAVEL PARAMETER EXTRACTION:
 When the user wants to plan a NEW trip, extract these parameters:
