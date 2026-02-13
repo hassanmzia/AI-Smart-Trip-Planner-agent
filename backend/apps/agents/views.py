@@ -529,6 +529,15 @@ def _synthesize_narrative(*, result, origin, destination, departure_date,
             f"  Mileage: {c.get('mileage', 'N/A')}"
         )
 
+    # --- Count trip days (needed for hotel cost calculation) ---
+    try:
+        from datetime import datetime as _dt
+        d1 = _dt.strptime(departure_date, '%Y-%m-%d')
+        d2 = _dt.strptime(return_date or departure_date, '%Y-%m-%d')
+        num_nights = max(1, (d2 - d1).days)
+    except Exception:
+        num_nights = 1
+
     budget_summary = ''
     total_cost = rec.get('total_estimated_cost')
 
@@ -586,15 +595,6 @@ def _synthesize_narrative(*, result, origin, destination, departure_date,
     attractions_intel = json.dumps(intel.get('must_see_attractions', []), indent=2) if intel.get('must_see_attractions') else 'Not available'
     food_intel = json.dumps(intel.get('food_scene', {}), indent=2) if intel.get('food_scene') else 'Not available'
     packing_intel = json.dumps(intel.get('packing_essentials', []), indent=2) if intel.get('packing_essentials') else 'Not available'
-
-    # --- Count trip days ---
-    try:
-        from datetime import datetime as _dt
-        d1 = _dt.strptime(departure_date, '%Y-%m-%d')
-        d2 = _dt.strptime(return_date or departure_date, '%Y-%m-%d')
-        num_nights = max(1, (d2 - d1).days)
-    except Exception:
-        num_nights = 1
 
     # --- Determine hotel name and checkout time for prompt ---
     hotel_name_for_prompt = ''
