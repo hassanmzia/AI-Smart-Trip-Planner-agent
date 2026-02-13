@@ -6,7 +6,8 @@ import { ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { createItinerary, getItinerary, updateItinerary, deleteItinerary } from '@/services/itineraryService';
 import { ItineraryPDFViewer } from '@/components/ItineraryPDFViewer';
 import DayByDayPlan from '@/components/DayByDayPlan';
-import { API_BASE_URL } from '@/utils/constants';
+import { API_ENDPOINTS } from '@/utils/constants';
+import api from '@/services/api';
 import toast from 'react-hot-toast';
 
 const STATUS_FLOW = ['draft', 'planned', 'approved', 'booked', 'active', 'completed'];
@@ -128,22 +129,11 @@ const ItineraryDetailPage = () => {
 
   // ── Status Workflow Actions ──
 
-  const authHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem('auth_token');
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    };
-  };
-
   const handleApprove = async () => {
     if (!id) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/itineraries/itineraries/${id}/approve/`, {
-        method: 'POST',
-        headers: authHeaders(),
-      });
-      const data = await res.json();
+      const response = await api.post(`${API_ENDPOINTS.ITINERARY.LIST}/${id}/approve/`);
+      const data = response.data;
       if (data.success) {
         setItineraryStatus('approved');
         toast.success('Plan approved! Ready to book.');
@@ -151,7 +141,7 @@ const ItineraryDetailPage = () => {
         toast.error(data.error || 'Failed to approve');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to approve');
+      toast.error(err.response?.data?.error || err.message || 'Failed to approve');
     }
   };
 
@@ -159,12 +149,8 @@ const ItineraryDetailPage = () => {
     if (!id) return;
     const reason = prompt('Reason for sending back to draft (optional):');
     try {
-      const res = await fetch(`${API_BASE_URL}/api/itineraries/itineraries/${id}/reject/`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ reason: reason || '' }),
-      });
-      const data = await res.json();
+      const response = await api.post(`${API_ENDPOINTS.ITINERARY.LIST}/${id}/reject/`, { reason: reason || '' });
+      const data = response.data;
       if (data.success) {
         setItineraryStatus('draft');
         toast.success('Sent back to draft for editing');
@@ -172,7 +158,7 @@ const ItineraryDetailPage = () => {
         toast.error(data.error || 'Failed');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed');
+      toast.error(err.response?.data?.error || err.message || 'Failed');
     }
   };
 
@@ -182,11 +168,8 @@ const ItineraryDetailPage = () => {
     setBookingResult(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/itineraries/itineraries/${id}/book/`, {
-        method: 'POST',
-        headers: authHeaders(),
-      });
-      const data = await res.json();
+      const response = await api.post(`${API_ENDPOINTS.ITINERARY.LIST}/${id}/book/`);
+      const data = response.data;
       setBookingResult(data);
 
       if (data.success) {
@@ -198,7 +181,7 @@ const ItineraryDetailPage = () => {
         toast.error(data.error || 'Booking failed');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Booking failed');
+      toast.error(err.response?.data?.error || err.message || 'Booking failed');
     } finally {
       setBooking(false);
       if (id) loadItinerary(id);
@@ -208,12 +191,8 @@ const ItineraryDetailPage = () => {
   const handleStatusUpdate = async (newStatus: string) => {
     if (!id) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/itineraries/itineraries/${id}/update-status/`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
+      const response = await api.post(`${API_ENDPOINTS.ITINERARY.LIST}/${id}/update-status/`, { status: newStatus });
+      const data = response.data;
       if (data.success) {
         setItineraryStatus(newStatus);
         toast.success(`Status updated to ${newStatus}`);
@@ -221,7 +200,7 @@ const ItineraryDetailPage = () => {
         toast.error(data.error || 'Failed to update status');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed');
+      toast.error(err.response?.data?.error || err.message || 'Failed');
     }
   };
 
