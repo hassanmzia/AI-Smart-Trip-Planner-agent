@@ -6,6 +6,7 @@ import { ArrowLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { createItinerary, getItinerary, updateItinerary, deleteItinerary } from '@/services/itineraryService';
 import { ItineraryPDFViewer } from '@/components/ItineraryPDFViewer';
 import DayByDayPlan from '@/components/DayByDayPlan';
+import TripFeedbackModal from '@/components/TripFeedbackModal';
 import { API_ENDPOINTS } from '@/utils/constants';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
@@ -47,6 +48,7 @@ const ItineraryDetailPage = () => {
   const [booking, setBooking] = useState(false);
   const [bookingResult, setBookingResult] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const loadItinerary = useCallback(async (itineraryId: string) => {
     try {
@@ -196,6 +198,10 @@ const ItineraryDetailPage = () => {
       if (data.success) {
         setItineraryStatus(newStatus);
         toast.success(`Status updated to ${newStatus}`);
+        // Show feedback modal when trip is completed
+        if (newStatus === 'completed') {
+          setShowFeedbackModal(true);
+        }
       } else {
         toast.error(data.error || 'Failed to update status');
       }
@@ -580,6 +586,16 @@ const ItineraryDetailPage = () => {
             Cancel this trip
           </button>
         </div>
+      )}
+
+      {/* Feedback Modal */}
+      {showFeedbackModal && id && (
+        <TripFeedbackModal
+          itineraryId={Number(id)}
+          destination={formData.destination || 'your destination'}
+          onClose={() => setShowFeedbackModal(false)}
+          onSubmitted={() => setShowFeedbackModal(false)}
+        />
       )}
     </div>
   );

@@ -423,7 +423,7 @@ Return ONLY valid JSON, no explanation."""
 
 def _synthesize_narrative(*, result, origin, destination, departure_date,
                          return_date, passengers, budget, cuisine,
-                         enhanced_data=None):
+                         enhanced_data=None, interests=None, travel_style=None):
     """
     Use LLM to generate a smart, decision-driven day-by-day itinerary.
     The LLM REASONS about all agent data to make real choices and MUST
@@ -673,6 +673,11 @@ Your job is to create a COMPLETE, ACTIONABLE day-by-day travel plan that integra
 ### Budget Data
 {budget_summary}
 
+### User Preferences
+{f'Interests: {interests}' if interests else 'No specific interests provided.'}
+{f'Travel style: {travel_style}' if travel_style else ''}
+{'IMPORTANT: Tailor activities, attractions, and experiences to match the users interests above. Prioritize activities that align with what they enjoy.' if interests else ''}
+
 ---
 
 ## INTELLIGENCE AGENT DATA:
@@ -834,30 +839,53 @@ def plan_travel(request):
     }
     """
     try:
-        # Get request data
+        from .agent_tools import resolve_city_to_airport
+
+        # Get request data — supports both city/country AND legacy airport codes
         query = request.data.get('query', 'Plan my travel')
-        origin = request.data.get('origin')
-        destination = request.data.get('destination')
         departure_date = request.data.get('departure_date')
         return_date = request.data.get('return_date')
         passengers = request.data.get('passengers', 1)
         budget = request.data.get('budget')
         cuisine = request.data.get('cuisine')
+        travel_style = request.data.get('travel_style')
+        interests = request.data.get('interests')
+
+        # Resolve origin: prefer city/country, fall back to legacy airport code
+        origin_city = request.data.get('origin_city', '')
+        origin_country = request.data.get('origin_country', '')
+        origin = request.data.get('origin') or resolve_city_to_airport(origin_city, origin_country)
+
+        # Resolve destination: prefer city/country, fall back to legacy airport code
+        destination_city = request.data.get('destination_city', '')
+        destination_country = request.data.get('destination_country', '')
+        destination = request.data.get('destination') or resolve_city_to_airport(destination_city, destination_country)
+
+        # For hotel/restaurant searches use the human-readable city name
+        destination_label = destination_city or destination
+        origin_label = origin_city or origin
 
         # Validate required fields
         if not all([origin, destination, departure_date]):
             return Response({
                 'success': False,
-                'error': 'origin, destination, and departure_date are required'
+                'error': 'origin (or origin_city), destination (or destination_city), and departure_date are required'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Get the travel system
         from .multi_agent_system import get_travel_system
         travel_system = get_travel_system()
 
+        # Enrich query with interests/style if provided
+        enriched_query = query
+        if interests:
+            enriched_query += f"\nUser interests: {interests}"
+        if travel_style:
+            enriched_query += f"\nTravel style: {travel_style}"
+
         # Run the multi-agent system
         result = travel_system.run(
-            user_query=query,
+            user_query=enriched_query,
             origin=origin,
             destination=destination,
             departure_date=departure_date,
@@ -887,14 +915,16 @@ def plan_travel(request):
             try:
                 result['itinerary_text'] = _synthesize_narrative(
                     result=result,
-                    origin=origin,
-                    destination=destination,
+                    origin=origin_label,
+                    destination=destination_label,
                     departure_date=departure_date,
                     return_date=return_date,
                     passengers=passengers,
                     budget=budget,
                     cuisine=cuisine,
                     enhanced_data=enhanced_data,
+                    interests=interests,
+                    travel_style=travel_style,
                 )
             except Exception as e:
                 logger.error(f"LLM narrative generation failed: {e}", exc_info=True)
@@ -921,12 +951,18 @@ def plan_travel(request):
                     user_intent=query,
                     context_data={
                         'origin': origin,
+                        'origin_city': origin_city or origin_label,
+                        'origin_country': origin_country,
                         'destination': destination,
+                        'destination_city': destination_city or destination_label,
+                        'destination_country': destination_country,
                         'departure_date': departure_date,
                         'return_date': return_date,
                         'passengers': passengers,
                         'budget': budget,
-                        'cuisine': cuisine
+                        'cuisine': cuisine,
+                        'travel_style': travel_style,
+                        'interests': interests,
                     },
                     status='completed' if result.get('success') else 'failed'
                 )
@@ -934,6 +970,16 @@ def plan_travel(request):
             except Exception as e:
                 # Don't fail the request if session creation fails
                 print(f"Session creation error: {e}")
+
+        # Include resolved airport/city info for the frontend
+        result['resolved'] = {
+            'origin_airport': origin,
+            'origin_city': origin_label,
+            'origin_country': origin_country,
+            'destination_airport': destination,
+            'destination_city': destination_label,
+            'destination_country': destination_country,
+        }
 
         return Response(result, status=status.HTTP_200_OK)
 

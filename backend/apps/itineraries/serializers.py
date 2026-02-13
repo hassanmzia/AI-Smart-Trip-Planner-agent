@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Itinerary, ItineraryDay, ItineraryItem, Weather
+from .models import Itinerary, ItineraryDay, ItineraryItem, Weather, TripFeedback
 
 
 class ItineraryItemSerializer(serializers.ModelSerializer):
@@ -32,6 +32,22 @@ class ItinerarySerializer(serializers.ModelSerializer):
         model = Itinerary
         fields = '__all__'
         read_only_fields = ['id', 'user', 'created_at', 'updated_at']
+
+
+class TripFeedbackSerializer(serializers.ModelSerializer):
+    """Serializer for TripFeedback model."""
+    sentiment_display = serializers.CharField(source='get_sentiment_display', read_only=True)
+
+    class Meta:
+        model = TripFeedback
+        fields = '__all__'
+        read_only_fields = [
+            'id', 'user', 'created_at', 'updated_at',
+            # NLP fields are computed by the backend
+            'sentiment', 'sentiment_score', 'emotions',
+            'is_toxic', 'toxicity_score', 'extracted_topics',
+            'learned_preferences',
+        ]
 
 
 class WeatherSerializer(serializers.ModelSerializer):

@@ -6,7 +6,7 @@ import Input from '@/components/common/Input';
 import Loading from '@/components/common/Loading';
 import { useToast } from '@/hooks/useNotifications';
 import { useAuth } from '@/hooks/useAuth';
-import { API_BASE_URL } from '@/utils/constants';
+import api from '@/services/api';
 import {
   createItinerary,
   createItineraryDay,
@@ -113,34 +113,43 @@ const AIPlannerPage = () => {
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
 
   // Form state
-  const [origin, setOrigin] = useState('');
-  const [destination, setDestination] = useState('');
+  const [originCity, setOriginCity] = useState('');
+  const [originCountry, setOriginCountry] = useState('');
+  const [destinationCity, setDestinationCity] = useState('');
+  const [destinationCountry, setDestinationCountry] = useState('');
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [passengers, setPassengers] = useState(1);
   const [budget, setBudget] = useState('');
   const [cuisine, setCuisine] = useState('');
+  const [travelStyle, setTravelStyle] = useState('');
+  const [interests, setInterests] = useState('');
   const [chatParams, setChatParams] = useState<any>({});
+
+  // Compose display labels from city/country
+  const originLabel = originCountry ? `${originCity}, ${originCountry}` : originCity;
+  const destinationLabel = destinationCountry ? `${destinationCity}, ${destinationCountry}` : destinationCity;
 
   const handlePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setResult(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/agents/plan`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `Plan a trip from ${origin} to ${destination}`,
-          origin, destination,
-          departure_date: departureDate,
-          return_date: returnDate || undefined,
-          passengers: Number(passengers),
-          budget: budget ? Number(budget) : undefined,
-          cuisine: cuisine || undefined,
-        }),
+      const response = await api.post('/api/agents/plan', {
+        query: `Plan a trip from ${originLabel} to ${destinationLabel}`,
+        origin_city: originCity,
+        origin_country: originCountry || undefined,
+        destination_city: destinationCity,
+        destination_country: destinationCountry || undefined,
+        departure_date: departureDate,
+        return_date: returnDate || undefined,
+        passengers: Number(passengers),
+        budget: budget ? Number(budget) : undefined,
+        cuisine: cuisine || undefined,
+        travel_style: travelStyle || undefined,
+        interests: interests || undefined,
       });
-      const data = await response.json();
+      const data = response.data;
       if (data.success) {
         setResult(data);
         setActiveTab('itinerary');
@@ -150,7 +159,7 @@ const AIPlannerPage = () => {
         showError(data.error || 'Planning failed');
       }
     } catch (error: any) {
-      showError(error.message || 'Failed to connect to AI agent');
+      showError(error.response?.data?.error || error.message || 'Failed to connect to AI agent');
     } finally {
       setLoading(false);
     }
@@ -161,8 +170,12 @@ const AIPlannerPage = () => {
     setResult(merged);
     setActiveTab('itinerary');
     setExpandedDay(1);
-    if (chatParams.origin) setOrigin(chatParams.origin);
-    if (chatParams.destination) setDestination(chatParams.destination);
+    if (chatParams.origin_city) setOriginCity(chatParams.origin_city);
+    if (chatParams.origin_country) setOriginCountry(chatParams.origin_country);
+    if (chatParams.origin) setOriginCity(chatParams.origin);
+    if (chatParams.destination_city) setDestinationCity(chatParams.destination_city);
+    if (chatParams.destination_country) setDestinationCountry(chatParams.destination_country);
+    if (chatParams.destination) setDestinationCity(chatParams.destination);
     if (chatParams.departure_date) setDepartureDate(chatParams.departure_date);
     if (chatParams.return_date) setReturnDate(chatParams.return_date);
     if (chatParams.passengers) setPassengers(chatParams.passengers);
@@ -187,15 +200,19 @@ const AIPlannerPage = () => {
       const endD = new Date(end);
       const totalDays = Math.max(1, Math.ceil((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1);
       const itinerary = await createItinerary({
-        title: `AI Trip: ${origin} to ${destination}`,
-        destination,
+        title: `AI Trip: ${originLabel} to ${destinationLabel}`,
+        destination: destinationLabel,
+        origin_city: originCity,
+        origin_country: originCountry || '',
+        destination_city: destinationCity,
+        destination_country: destinationCountry || '',
         start_date: start,
         end_date: end,
         status: 'planned',
         number_of_travelers: passengers,
         estimated_budget: totalCost ? String(totalCost) : (budget ? budget : undefined),
         currency: 'USD',
-        description: `AI-planned trip from ${origin} to ${destination}. ${passengers} passenger(s).`,
+        description: `AI-planned trip from ${originLabel} to ${destinationLabel}. ${passengers} passenger(s).`,
         ai_narrative: result.itinerary_text || '',
       });
       const itineraryId = Number(itinerary.id);
@@ -207,7 +224,7 @@ const AIPlannerPage = () => {
         const isFirstDay = d === 1;
         const isLastDay = d === totalDays;
         let dayTitle = parsedDay?.title
-          || (isFirstDay ? `Arrival in ${destination}` : isLastDay ? 'Departure Day' : `Explore ${destination}`);
+          || (isFirstDay ? `Arrival in ${destinationLabel}` : isLastDay ? 'Departure Day' : `Explore ${destinationLabel}`);
         const day = await createItineraryDay({
           itinerary: itineraryId,
           day_number: d,
@@ -221,11 +238,11 @@ const AIPlannerPage = () => {
             const flight = rec.recommended_flight;
             await createItineraryItem({
               day: dayId, item_type: 'flight', order: itemOrder++,
-              title: `${flight.airline} ${flight.flight_number || ''} - ${flight.departure_airport_code || origin} to ${flight.arrival_airport_code || destination}`,
+              title: `${flight.airline} ${flight.flight_number || ''} - ${flight.departure_airport_code || originLabel} to ${flight.arrival_airport_code || destinationLabel}`,
               description: `${flight.stops === 0 ? 'Nonstop' : `${flight.stops} stop(s)`}${flight.duration ? ` · ${Math.floor(flight.duration / 60)}h ${flight.duration % 60}m` : ''}`,
               start_time: flight.departure_time?.split(' ')[1]?.slice(0, 5) || undefined,
               estimated_cost: flight.price || undefined,
-              location_name: flight.departure_airport || origin,
+              location_name: flight.departure_airport || originLabel,
             });
           }
           if (rec?.recommended_hotel) {
@@ -236,7 +253,7 @@ const AIPlannerPage = () => {
               description: `${hotel.stars || hotel.star_rating || 0} stars`,
               start_time: '15:00',
               estimated_cost: hotel.price || hotel.price_per_night || undefined,
-              location_name: hotel.address || destination,
+              location_name: hotel.address || destinationLabel,
             });
           }
         }
@@ -247,7 +264,7 @@ const AIPlannerPage = () => {
               day: dayId, item_type: 'hotel', order: itemOrder++,
               title: `Check out: ${hotel.name || hotel.hotel_name}`,
               start_time: '10:00',
-              location_name: hotel.address || destination,
+              location_name: hotel.address || destinationLabel,
             });
           }
         }
@@ -277,7 +294,7 @@ const AIPlannerPage = () => {
         } else if (!isFirstDay && !isLastDay) {
           await createItineraryItem({
             day: dayId, item_type: 'activity', order: 0,
-            title: `Explore ${destination}`,
+            title: `Explore ${destinationLabel}`,
             description: 'Add your planned activities for this day',
           });
         }
@@ -369,27 +386,66 @@ const AIPlannerPage = () => {
           <CardHeader><CardTitle>Travel Details</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handlePlan} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Origin (Airport Code)" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="e.g., JFK, CDG, LHR" required />
-                <Input label="Destination (Airport Code)" value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="e.g., LAX, BER, NRT" required />
+              {/* Origin */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Where are you traveling from?</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input label="Origin City" value={originCity} onChange={(e) => setOriginCity(e.target.value)} placeholder="e.g., New York, Paris, Tokyo" required />
+                  <Input label="Country" value={originCountry} onChange={(e) => setOriginCountry(e.target.value)} placeholder="e.g., United States, France" />
+                </div>
+              </div>
+              {/* Destination */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">Where do you want to go?</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input label="Destination City" value={destinationCity} onChange={(e) => setDestinationCity(e.target.value)} placeholder="e.g., Berlin, Bangkok, London" required />
+                  <Input label="Country" value={destinationCountry} onChange={(e) => setDestinationCountry(e.target.value)} placeholder="e.g., Germany, Thailand" />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input label="Departure Date" type="date" value={departureDate} onChange={(e) => setDepartureDate(e.target.value)} required />
                 <Input label="Return Date (Optional)" type="date" value={returnDate} onChange={(e) => setReturnDate(e.target.value)} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Passengers" type="number" min="1" value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} required />
-                <Input label="Budget (USD, Optional)" type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="e.g., 500" />
+                <Input label="Travelers" type="number" min="1" value={passengers} onChange={(e) => setPassengers(Number(e.target.value))} required />
+                <Input label="Budget (USD, Optional)" type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="e.g., 2000" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preferred Cuisine (Optional)</label>
+                  <select value={cuisine} onChange={(e) => setCuisine(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <option value="">Any Cuisine</option>
+                    {['American','Italian','Mexican','Chinese','Japanese','Indian','Thai','French','Mediterranean','Seafood','Korean','Vietnamese'].map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Travel Style (Optional)</label>
+                  <select value={travelStyle} onChange={(e) => setTravelStyle(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <option value="">Any Style</option>
+                    {['Budget','Comfort','Luxury','Adventure','Cultural','Family','Romantic','Business'].map(s => (
+                      <option key={s} value={s.toLowerCase()}>{s}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Preferred Cuisine (Optional)</label>
-                <select value={cuisine} onChange={(e) => setCuisine(e.target.value)} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                  <option value="">Any Cuisine</option>
-                  {['American','Italian','Mexican','Chinese','Japanese','Indian','Thai','French','Mediterranean','Seafood'].map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your Interests (Optional)</label>
+                <textarea
+                  value={interests}
+                  onChange={(e) => setInterests(e.target.value)}
+                  rows={3}
+                  placeholder="Tell us what you enjoy: e.g., historical sites, museums, local street food, hiking, beach activities, nightlife, photography, art galleries, natural beauty, adventure sports..."
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  AI will personalize your itinerary based on your interests.
+                </p>
               </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                AI will automatically find the nearest airports, best hotels, restaurants, and attractions based on your city.
+              </p>
               <Button type="submit" className="w-full" size="lg" isLoading={loading} disabled={loading}>
                 {loading ? 'AI Agents Working...' : 'Plan My Trip with AI'}
               </Button>
@@ -462,7 +518,7 @@ const AIPlannerPage = () => {
                 <div>
                   <p className="text-primary-200 text-sm font-medium uppercase tracking-wider mb-1">AI-Planned Trip</p>
                   <h2 className="text-2xl md:text-3xl font-bold">
-                    {origin || 'Origin'} &rarr; {destination || 'Destination'}
+                    {originLabel || 'Origin'} &rarr; {destinationLabel || 'Destination'}
                   </h2>
                   <p className="text-primary-100 mt-1">{formatDateRange()}{passengers > 1 ? ` · ${passengers} travelers` : ''}</p>
                 </div>
@@ -1228,7 +1284,7 @@ const AIPlannerPage = () => {
                 <>
                   <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-2">
                     <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    10+ AI agents analyzed {destination} for your travel dates
+                    10+ AI agents analyzed {destinationLabel} for your travel dates
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

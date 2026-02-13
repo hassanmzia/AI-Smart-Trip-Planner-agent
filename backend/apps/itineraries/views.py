@@ -10,13 +10,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.http import FileResponse, HttpResponse
 from django.conf import settings
 
-from .models import Itinerary, ItineraryDay, ItineraryItem, Weather
+from .models import Itinerary, ItineraryDay, ItineraryItem, Weather, TripFeedback
 from .serializers import (
     ItinerarySerializer, ItineraryDaySerializer,
-    ItineraryItemSerializer, WeatherSerializer
+    ItineraryItemSerializer, WeatherSerializer, TripFeedbackSerializer
 )
 from .pdf_generator import ProfessionalPDFGenerator
 from .email_service import EmailService, CalendarService
+from .feedback_service import FeedbackAnalyzer
 
 
 class ItineraryViewSet(viewsets.ModelViewSet):
@@ -586,7 +587,76 @@ class ItineraryViewSet(viewsets.ModelViewSet):
             'success': True,
             'status': new_status,
             'itinerary': serializer.data,
+            # Signal frontend to show feedback modal when trip is completed
+            'feedback_requested': new_status == 'completed',
         })
+
+    @action(detail=True, methods=['post'], url_path='feedback')
+    def submit_feedback(self, request, pk=None):
+        """
+        Submit post-trip feedback with NLP analysis.
+
+        POST body:
+        - overall_rating: 1-5 (required)
+        - flight_rating, hotel_rating, activities_rating, food_rating,
+          value_for_money_rating: 1-5 (optional)
+        - loved_most, would_change, additional_comments: text (optional)
+        - would_visit_again, would_recommend: boolean (optional)
+        - tags: list of strings (optional)
+        """
+        itinerary = self.get_object()
+
+        # Check if feedback already exists
+        if hasattr(itinerary, 'feedback'):
+            return Response(
+                {'error': 'Feedback already submitted for this trip.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = TripFeedbackSerializer(data={
+            **request.data,
+            'itinerary': itinerary.id,
+            'user': request.user.id,
+        })
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        feedback = serializer.save(user=request.user, itinerary=itinerary)
+
+        # Run NLP analysis on the feedback text
+        try:
+            nlp_results = FeedbackAnalyzer.analyze(feedback)
+            feedback.sentiment = nlp_results.get('sentiment', '')
+            feedback.sentiment_score = nlp_results.get('sentiment_score')
+            feedback.emotions = nlp_results.get('emotions', {})
+            feedback.is_toxic = nlp_results.get('is_toxic', False)
+            feedback.toxicity_score = nlp_results.get('toxicity_score')
+            feedback.extracted_topics = nlp_results.get('extracted_topics', [])
+            feedback.learned_preferences = nlp_results.get('learned_preferences', {})
+            feedback.save()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"NLP analysis failed: {e}")
+
+        return Response({
+            'success': True,
+            'message': 'Thank you for your feedback!',
+            'feedback': TripFeedbackSerializer(feedback).data,
+        })
+
+    @action(detail=True, methods=['get'], url_path='feedback')
+    def get_feedback(self, request, pk=None):
+        """Get feedback for an itinerary."""
+        itinerary = self.get_object()
+        try:
+            feedback = itinerary.feedback
+            return Response(TripFeedbackSerializer(feedback).data)
+        except TripFeedback.DoesNotExist:
+            return Response(
+                {'error': 'No feedback submitted yet.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 
 class ItineraryDayViewSet(viewsets.ModelViewSet):
