@@ -103,7 +103,7 @@ export const TripFeedbackModal = ({
       toast.success('Thank you for your feedback!');
       onSubmitted();
     } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to submit feedback');
+      toast.error(err.response?.data?.error || err.message || 'Failed to submit feedback');
     } finally {
       setSubmitting(false);
     }
