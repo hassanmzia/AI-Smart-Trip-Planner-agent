@@ -591,10 +591,11 @@ class ItineraryViewSet(viewsets.ModelViewSet):
             'feedback_requested': new_status == 'completed',
         })
 
-    @action(detail=True, methods=['post'], url_path='feedback')
-    def submit_feedback(self, request, pk=None):
+    @action(detail=True, methods=['get', 'post'], url_path='feedback')
+    def feedback(self, request, pk=None):
         """
-        Submit post-trip feedback with NLP analysis.
+        GET: Retrieve feedback for an itinerary.
+        POST: Submit post-trip feedback with NLP analysis.
 
         POST body:
         - overall_rating: 1-5 (required)
@@ -606,8 +607,19 @@ class ItineraryViewSet(viewsets.ModelViewSet):
         """
         itinerary = self.get_object()
 
+        if request.method == 'GET':
+            try:
+                fb = itinerary.feedback
+                return Response(TripFeedbackSerializer(fb).data)
+            except TripFeedback.DoesNotExist:
+                return Response(
+                    {'error': 'No feedback submitted yet.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+        # POST — submit feedback
         # Check if feedback already exists
-        if hasattr(itinerary, 'feedback'):
+        if TripFeedback.objects.filter(itinerary=itinerary).exists():
             return Response(
                 {'error': 'Feedback already submitted for this trip.'},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -644,19 +656,6 @@ class ItineraryViewSet(viewsets.ModelViewSet):
             'message': 'Thank you for your feedback!',
             'feedback': TripFeedbackSerializer(feedback).data,
         })
-
-    @action(detail=True, methods=['get'], url_path='feedback')
-    def get_feedback(self, request, pk=None):
-        """Get feedback for an itinerary."""
-        itinerary = self.get_object()
-        try:
-            feedback = itinerary.feedback
-            return Response(TripFeedbackSerializer(feedback).data)
-        except TripFeedback.DoesNotExist:
-            return Response(
-                {'error': 'No feedback submitted yet.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
 
 
 class ItineraryDayViewSet(viewsets.ModelViewSet):
