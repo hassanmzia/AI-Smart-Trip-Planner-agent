@@ -8,6 +8,32 @@ import { Card } from '@/components/common';
 import { ROUTES } from '@/utils/constants';
 import { useToast } from '@/hooks/useNotifications';
 
+/**
+ * Extract field-level errors from a DRF validation response.
+ * DRF returns errors as { field: ["msg", ...], ... }
+ */
+function parseFieldErrors(error: any): Record<string, string> {
+  const responseData = error?.response?.data;
+  if (!responseData || typeof responseData !== 'object') return {};
+
+  const parsed: Record<string, string> = {};
+  for (const [field, errors] of Object.entries(responseData)) {
+    if (Array.isArray(errors) && errors.length > 0) {
+      parsed[field] = errors[0] as string;
+    } else if (typeof errors === 'string') {
+      parsed[field] = errors;
+    }
+  }
+  return parsed;
+}
+
+function extractErrorMessage(error: any): string {
+  const fields = parseFieldErrors(error);
+  const messages = Object.values(fields);
+  if (messages.length > 0) return messages[0];
+  return error?.message || 'Registration failed. Please try again.';
+}
+
 const RegisterPage = () => {
   useGuestOnly();
   const navigate = useNavigate();
@@ -20,11 +46,14 @@ const RegisterPage = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
 
     if (password !== confirmPassword) {
+      setFieldErrors({ password: 'Passwords do not match' });
       showError('Passwords do not match');
       return;
     }
@@ -42,7 +71,9 @@ const RegisterPage = () => {
       showSuccess('Registration successful!');
       navigate(ROUTES.DASHBOARD);
     } catch (error: any) {
-      showError(error.message || 'Registration failed');
+      const errors = parseFieldErrors(error);
+      setFieldErrors(errors);
+      showError(extractErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -72,16 +103,18 @@ const RegisterPage = () => {
               label="First Name"
               type="text"
               value={first_name}
-              onChange={(e) => setFirstName(e.target.value)}
+              onChange={(e) => { setFirstName(e.target.value); setFieldErrors((prev) => ({ ...prev, first_name: '' })); }}
               placeholder="John"
+              error={fieldErrors.first_name}
               required
             />
             <Input
               label="Last Name"
               type="text"
               value={last_name}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => { setLastName(e.target.value); setFieldErrors((prev) => ({ ...prev, last_name: '' })); }}
               placeholder="Doe"
+              error={fieldErrors.last_name}
               required
             />
           </div>
@@ -90,8 +123,9 @@ const RegisterPage = () => {
             label="Email address"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setFieldErrors((prev) => ({ ...prev, email: '' })); }}
             placeholder="you@example.com"
+            error={fieldErrors.email}
             required
           />
 
@@ -99,8 +133,9 @@ const RegisterPage = () => {
             label="Password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); setFieldErrors((prev) => ({ ...prev, password: '' })); }}
             placeholder="••••••••"
+            error={fieldErrors.password}
             required
           />
 
@@ -108,8 +143,9 @@ const RegisterPage = () => {
             label="Confirm Password"
             type="password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => { setConfirmPassword(e.target.value); setFieldErrors((prev) => ({ ...prev, password_confirm: '' })); }}
             placeholder="••••••••"
+            error={fieldErrors.password_confirm}
             required
           />
 
