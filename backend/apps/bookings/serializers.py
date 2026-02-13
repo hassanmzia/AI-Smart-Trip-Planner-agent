@@ -64,7 +64,7 @@ class BookingListSerializer(serializers.ModelSerializer):
         model = Booking
         fields = [
             'id', 'booking_number', 'status', 'status_display', 'total_amount',
-            'currency', 'primary_traveler_name', 'booking_date', 'item_count'
+            'currency', 'primary_traveler_name', 'booking_date', 'notes', 'item_count'
         ]
 
     def get_item_count(self, obj):

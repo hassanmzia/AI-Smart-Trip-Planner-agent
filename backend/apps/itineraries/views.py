@@ -386,14 +386,23 @@ class ItineraryViewSet(viewsets.ModelViewSet):
             'message': f'Itinerary sent back to draft.{" Reason: " + reason if reason else ""}',
         })
 
+    # Item types that require actual booking (flights, hotels, car rentals).
+    # Attractions are booked only when they have a cost (ticketed venues).
+    BOOKABLE_TYPES = {'flight', 'hotel', 'transport'}
+
     @action(detail=True, methods=['post'], url_path='book')
     def book(self, request, pk=None):
         """
-        ReAct Booking Agent — takes an approved itinerary and books everything.
+        ReAct Booking Agent — takes an approved itinerary and books essentials.
 
-        This simulates the booking process for flights, hotels, car rentals,
-        restaurants, and attractions. In a production system, this would
-        connect to real booking APIs (Amadeus, Booking.com, etc.).
+        Only books items that genuinely require a reservation:
+        - Flights (airline tickets)
+        - Hotels (accommodation)
+        - Transport / car rentals
+        - Attractions with a ticket cost (museums, theme parks, events)
+
+        Restaurants, free activities, notes, and casual sightseeing are
+        skipped — they don't need advance booking.
 
         Flow: approved → booking → booked
         """
@@ -432,6 +441,23 @@ class ItineraryViewSet(viewsets.ModelViewSet):
                     })
                     continue
 
+                # Determine if this item needs booking.
+                # Attractions are only booked when they have a ticket cost
+                # (e.g. museum entry, theme park, event). Free sightseeing
+                # spots don't need advance booking.
+                needs_booking = (
+                    item.item_type in self.BOOKABLE_TYPES
+                    or (item.item_type == 'attraction' and item.estimated_cost and float(item.estimated_cost) > 0)
+                )
+
+                if not needs_booking:
+                    booking_results.append({
+                        'item': item.title,
+                        'type': item.item_type,
+                        'status': 'no_booking_needed',
+                    })
+                    continue
+
                 # Generate booking reference
                 ref = f"BK-{item.item_type[:3].upper()}-{_uuid.uuid4().hex[:8].upper()}"
 
@@ -439,91 +465,37 @@ class ItineraryViewSet(viewsets.ModelViewSet):
                 try:
                     if item.item_type == 'flight':
                         # In production: call Amadeus/Skyscanner booking API
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nBooked: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'flight',
-                            'status': 'booked',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
+                        label = 'Booked'
+                        book_status = 'booked'
                     elif item.item_type == 'hotel':
                         # In production: call Booking.com/Hotels.com API
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nBooked: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'hotel',
-                            'status': 'booked',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
-                    elif item.item_type == 'restaurant':
-                        # In production: call OpenTable/Resy API for reservation
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nReservation: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'restaurant',
-                            'status': 'reserved',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
+                        label = 'Booked'
+                        book_status = 'booked'
+                    elif item.item_type == 'transport':
+                        # In production: car rental / transfer booking API
+                        label = 'Booked'
+                        book_status = 'booked'
                     elif item.item_type == 'attraction':
                         # In production: call GetYourGuide/Viator API
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nTicket: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'attraction',
-                            'status': 'ticket_purchased',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
-                    elif item.item_type == 'transport':
-                        # Car rental or transport booking
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nBooked: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'transport',
-                            'status': 'booked',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
+                        label = 'Ticket'
+                        book_status = 'ticket_purchased'
                     else:
-                        # Activities, notes — skip booking
-                        booking_results.append({
-                            'item': item.title,
-                            'type': item.item_type,
-                            'status': 'no_booking_needed',
-                        })
+                        label = 'Booked'
+                        book_status = 'booked'
+
+                    item.is_booked = True
+                    item.booking_reference = ref
+                    item.notes = (item.notes or '') + f'\n{label}: {ref}'
+                    item.save()
+                    cost = float(item.estimated_cost or 0)
+                    total_booked_cost += cost
+                    booking_results.append({
+                        'item': item.title,
+                        'type': item.item_type,
+                        'status': book_status,
+                        'reference': ref,
+                        'cost': cost,
+                    })
 
                 except Exception as e:
                     logger.error(f"Booking failed for item {item.id} ({item.title}): {e}")

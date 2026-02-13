@@ -53,10 +53,10 @@ export const API_ENDPOINTS = {
     BOOK: '/api/hotels/book',
   },
   BOOKINGS: {
-    LIST: '/api/bookings',
-    DETAILS: '/api/bookings',
-    CANCEL: '/api/bookings',
-    UPDATE: '/api/bookings',
+    LIST: '/api/bookings/bookings',
+    DETAILS: '/api/bookings/bookings',
+    CANCEL: '/api/bookings/bookings',
+    UPDATE: '/api/bookings/bookings',
   },
   PAYMENTS: {
     CREATE_INTENT: '/api/payments/create-intent',
