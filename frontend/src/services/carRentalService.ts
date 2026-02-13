@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.REACT_APP_API_URL || 'http://172.168.1.95:8109';
+const API_URL = import.meta.env.VITE_API_URL || 'http://108.48.39.238:3090';
 
 export interface CarRental {
   id?: number;
