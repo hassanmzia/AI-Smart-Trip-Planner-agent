@@ -60,6 +60,10 @@ export const createItinerary = async (data: {
   number_of_travelers?: number;
   estimated_budget?: string;
   currency?: string;
+  origin_city?: string;
+  origin_country?: string;
+  destination_city?: string;
+  destination_country?: string;
 }): Promise<Itinerary> => {
   console.log('Creating itinerary with data:', data);
   console.log('POST URL:', `${API_ENDPOINTS.ITINERARY.CREATE}/`);

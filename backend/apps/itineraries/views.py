@@ -10,13 +10,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.http import FileResponse, HttpResponse
 from django.conf import settings
 
-from .models import Itinerary, ItineraryDay, ItineraryItem, Weather
+from .models import Itinerary, ItineraryDay, ItineraryItem, Weather, TripFeedback
 from .serializers import (
     ItinerarySerializer, ItineraryDaySerializer,
-    ItineraryItemSerializer, WeatherSerializer
+    ItineraryItemSerializer, WeatherSerializer, TripFeedbackSerializer
 )
 from .pdf_generator import ProfessionalPDFGenerator
 from .email_service import EmailService, CalendarService
+from .feedback_service import FeedbackAnalyzer
 
 
 class ItineraryViewSet(viewsets.ModelViewSet):
@@ -386,14 +387,23 @@ class ItineraryViewSet(viewsets.ModelViewSet):
             'message': f'Itinerary sent back to draft.{" Reason: " + reason if reason else ""}',
         })
 
+    # Item types that require actual booking (flights, hotels, car rentals).
+    # Attractions are booked only when they have a cost (ticketed venues).
+    BOOKABLE_TYPES = {'flight', 'hotel', 'transport'}
+
     @action(detail=True, methods=['post'], url_path='book')
     def book(self, request, pk=None):
         """
-        ReAct Booking Agent — takes an approved itinerary and books everything.
+        ReAct Booking Agent — takes an approved itinerary and books essentials.
 
-        This simulates the booking process for flights, hotels, car rentals,
-        restaurants, and attractions. In a production system, this would
-        connect to real booking APIs (Amadeus, Booking.com, etc.).
+        Only books items that genuinely require a reservation:
+        - Flights (airline tickets)
+        - Hotels (accommodation)
+        - Transport / car rentals
+        - Attractions with a ticket cost (museums, theme parks, events)
+
+        Restaurants, free activities, notes, and casual sightseeing are
+        skipped — they don't need advance booking.
 
         Flow: approved → booking → booked
         """
@@ -432,6 +442,23 @@ class ItineraryViewSet(viewsets.ModelViewSet):
                     })
                     continue
 
+                # Determine if this item needs booking.
+                # Attractions are only booked when they have a ticket cost
+                # (e.g. museum entry, theme park, event). Free sightseeing
+                # spots don't need advance booking.
+                needs_booking = (
+                    item.item_type in self.BOOKABLE_TYPES
+                    or (item.item_type == 'attraction' and item.estimated_cost and float(item.estimated_cost) > 0)
+                )
+
+                if not needs_booking:
+                    booking_results.append({
+                        'item': item.title,
+                        'type': item.item_type,
+                        'status': 'no_booking_needed',
+                    })
+                    continue
+
                 # Generate booking reference
                 ref = f"BK-{item.item_type[:3].upper()}-{_uuid.uuid4().hex[:8].upper()}"
 
@@ -439,91 +466,37 @@ class ItineraryViewSet(viewsets.ModelViewSet):
                 try:
                     if item.item_type == 'flight':
                         # In production: call Amadeus/Skyscanner booking API
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nBooked: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'flight',
-                            'status': 'booked',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
+                        label = 'Booked'
+                        book_status = 'booked'
                     elif item.item_type == 'hotel':
                         # In production: call Booking.com/Hotels.com API
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nBooked: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'hotel',
-                            'status': 'booked',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
-                    elif item.item_type == 'restaurant':
-                        # In production: call OpenTable/Resy API for reservation
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nReservation: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'restaurant',
-                            'status': 'reserved',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
+                        label = 'Booked'
+                        book_status = 'booked'
+                    elif item.item_type == 'transport':
+                        # In production: car rental / transfer booking API
+                        label = 'Booked'
+                        book_status = 'booked'
                     elif item.item_type == 'attraction':
                         # In production: call GetYourGuide/Viator API
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nTicket: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'attraction',
-                            'status': 'ticket_purchased',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
-                    elif item.item_type == 'transport':
-                        # Car rental or transport booking
-                        item.is_booked = True
-                        item.booking_reference = ref
-                        item.notes = (item.notes or '') + f'\nBooked: {ref}'
-                        item.save()
-                        cost = float(item.estimated_cost or 0)
-                        total_booked_cost += cost
-                        booking_results.append({
-                            'item': item.title,
-                            'type': 'transport',
-                            'status': 'booked',
-                            'reference': ref,
-                            'cost': cost,
-                        })
-
+                        label = 'Ticket'
+                        book_status = 'ticket_purchased'
                     else:
-                        # Activities, notes — skip booking
-                        booking_results.append({
-                            'item': item.title,
-                            'type': item.item_type,
-                            'status': 'no_booking_needed',
-                        })
+                        label = 'Booked'
+                        book_status = 'booked'
+
+                    item.is_booked = True
+                    item.booking_reference = ref
+                    item.notes = (item.notes or '') + f'\n{label}: {ref}'
+                    item.save()
+                    cost = float(item.estimated_cost or 0)
+                    total_booked_cost += cost
+                    booking_results.append({
+                        'item': item.title,
+                        'type': item.item_type,
+                        'status': book_status,
+                        'reference': ref,
+                        'cost': cost,
+                    })
 
                 except Exception as e:
                     logger.error(f"Booking failed for item {item.id} ({item.title}): {e}")
@@ -614,7 +587,76 @@ class ItineraryViewSet(viewsets.ModelViewSet):
             'success': True,
             'status': new_status,
             'itinerary': serializer.data,
+            # Signal frontend to show feedback modal when trip is completed
+            'feedback_requested': new_status == 'completed',
         })
+
+    @action(detail=True, methods=['post'], url_path='feedback')
+    def submit_feedback(self, request, pk=None):
+        """
+        Submit post-trip feedback with NLP analysis.
+
+        POST body:
+        - overall_rating: 1-5 (required)
+        - flight_rating, hotel_rating, activities_rating, food_rating,
+          value_for_money_rating: 1-5 (optional)
+        - loved_most, would_change, additional_comments: text (optional)
+        - would_visit_again, would_recommend: boolean (optional)
+        - tags: list of strings (optional)
+        """
+        itinerary = self.get_object()
+
+        # Check if feedback already exists
+        if hasattr(itinerary, 'feedback'):
+            return Response(
+                {'error': 'Feedback already submitted for this trip.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = TripFeedbackSerializer(data={
+            **request.data,
+            'itinerary': itinerary.id,
+            'user': request.user.id,
+        })
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        feedback = serializer.save(user=request.user, itinerary=itinerary)
+
+        # Run NLP analysis on the feedback text
+        try:
+            nlp_results = FeedbackAnalyzer.analyze(feedback)
+            feedback.sentiment = nlp_results.get('sentiment', '')
+            feedback.sentiment_score = nlp_results.get('sentiment_score')
+            feedback.emotions = nlp_results.get('emotions', {})
+            feedback.is_toxic = nlp_results.get('is_toxic', False)
+            feedback.toxicity_score = nlp_results.get('toxicity_score')
+            feedback.extracted_topics = nlp_results.get('extracted_topics', [])
+            feedback.learned_preferences = nlp_results.get('learned_preferences', {})
+            feedback.save()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"NLP analysis failed: {e}")
+
+        return Response({
+            'success': True,
+            'message': 'Thank you for your feedback!',
+            'feedback': TripFeedbackSerializer(feedback).data,
+        })
+
+    @action(detail=True, methods=['get'], url_path='feedback')
+    def get_feedback(self, request, pk=None):
+        """Get feedback for an itinerary."""
+        itinerary = self.get_object()
+        try:
+            feedback = itinerary.feedback
+            return Response(TripFeedbackSerializer(feedback).data)
+        except TripFeedback.DoesNotExist:
+            return Response(
+                {'error': 'No feedback submitted yet.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
 
 class ItineraryDayViewSet(viewsets.ModelViewSet):

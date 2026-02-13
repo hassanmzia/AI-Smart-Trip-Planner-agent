@@ -29,7 +29,15 @@ class Itinerary(models.Model):
     ai_narrative = models.TextField(blank=True, default='',
                                     help_text='Full AI-generated day-by-day narrative for PDF export')
 
+    # Origin
+    origin_city = models.CharField(max_length=200, blank=True, default='')
+    origin_country = models.CharField(max_length=100, blank=True, default='')
+
+    # Destination
     destination = models.CharField(max_length=200)
+    destination_city = models.CharField(max_length=200, blank=True, default='')
+    destination_country = models.CharField(max_length=100, blank=True, default='')
+
     start_date = models.DateField()
     end_date = models.DateField()
 
@@ -203,3 +211,111 @@ class Weather(models.Model):
 
     def __str__(self):
         return f"{self.location} - {self.date}: {self.condition}"
+
+
+class TripFeedback(models.Model):
+    """
+    Post-trip feedback with NLP-powered sentiment and emotion analysis.
+
+    Collected when a user marks a trip as 'completed'. The NLP analysis
+    extracts sentiment, emotions, and topics from freeform comments to
+    power future recommendation improvements.
+    """
+
+    SENTIMENT_CHOICES = [
+        ('very_positive', 'Very Positive'),
+        ('positive', 'Positive'),
+        ('neutral', 'Neutral'),
+        ('negative', 'Negative'),
+        ('very_negative', 'Very Negative'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='trip_feedbacks'
+    )
+    itinerary = models.OneToOneField(
+        'Itinerary',
+        on_delete=models.CASCADE,
+        related_name='feedback'
+    )
+
+    # Star ratings (1-5)
+    overall_rating = models.IntegerField(
+        help_text='Overall trip satisfaction 1-5'
+    )
+    flight_rating = models.IntegerField(null=True, blank=True)
+    hotel_rating = models.IntegerField(null=True, blank=True)
+    activities_rating = models.IntegerField(null=True, blank=True)
+    food_rating = models.IntegerField(null=True, blank=True)
+    value_for_money_rating = models.IntegerField(null=True, blank=True)
+
+    # Freeform text
+    loved_most = models.TextField(blank=True, help_text='What did you love most?')
+    would_change = models.TextField(blank=True, help_text='What would you change?')
+    additional_comments = models.TextField(blank=True)
+
+    # Boolean flags
+    would_visit_again = models.BooleanField(null=True, blank=True)
+    would_recommend = models.BooleanField(null=True, blank=True)
+
+    # User-selected tags
+    tags = models.JSONField(
+        default=list, blank=True,
+        help_text='Tags like: great_location, too_expensive, loved_culture, etc.'
+    )
+
+    # ── NLP Analysis Results (populated by backend) ──
+
+    # Sentiment analysis
+    sentiment = models.CharField(
+        max_length=20, choices=SENTIMENT_CHOICES,
+        blank=True, default='',
+        help_text='Overall sentiment derived from NLP analysis'
+    )
+    sentiment_score = models.FloatField(
+        null=True, blank=True,
+        help_text='Sentiment polarity score (-1.0 to 1.0)'
+    )
+
+    # Emotion detection
+    emotions = models.JSONField(
+        default=dict, blank=True,
+        help_text='Detected emotions: {joy: 0.8, surprise: 0.3, ...}'
+    )
+
+    # Toxicity / negativity flags
+    is_toxic = models.BooleanField(default=False)
+    toxicity_score = models.FloatField(
+        null=True, blank=True,
+        help_text='Toxicity score 0.0-1.0'
+    )
+
+    # Extracted topics/keywords from comments
+    extracted_topics = models.JSONField(
+        default=list, blank=True,
+        help_text='Key topics extracted from comments: [beach, museum, food, ...]'
+    )
+
+    # Preference signals learned from this feedback
+    learned_preferences = models.JSONField(
+        default=dict, blank=True,
+        help_text='Preference signals: {hotel_priority: location, budget_sensitivity: 0.8}'
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'trip_feedback'
+        ordering = ['-created_at']
+        verbose_name = 'Trip Feedback'
+        verbose_name_plural = 'Trip Feedbacks'
+        indexes = [
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['sentiment']),
+        ]
+
+    def __str__(self):
+        return f"Feedback for {self.itinerary.title} by {self.user.email} ({self.overall_rating}/5)"

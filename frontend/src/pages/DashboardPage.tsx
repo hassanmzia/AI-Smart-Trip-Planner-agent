@@ -100,7 +100,7 @@ const DashboardPage = () => {
           <CardContent>
             <p className="text-4xl font-bold text-primary-600 dark:text-primary-400">
               {formatCurrency(
-                bookings.reduce((sum, b) => sum + b.totalAmount, 0)
+                bookings.reduce((sum: number, b: any) => sum + parseFloat(b.total_amount || 0), 0)
               )}
             </p>
           </CardContent>
@@ -161,22 +161,22 @@ const DashboardPage = () => {
         <CardContent>
           {bookings.length > 0 ? (
             <div className="space-y-4">
-              {bookings.map((booking) => (
+              {bookings.map((booking: any) => (
                 <div
                   key={booking.id}
                   className="flex justify-between items-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                 >
                   <div>
                     <p className="font-semibold text-gray-900 dark:text-white">
-                      {booking.type === 'flight' ? 'Flight Booking' : 'Hotel Booking'}
+                      {booking.notes || `Booking #${booking.booking_number}`}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {formatDate(booking.createdAt)}
+                      {formatDate(booking.booking_date)} &middot; {booking.booking_number}
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-gray-900 dark:text-white">
-                      {formatCurrency(booking.totalAmount, booking.currency)}
+                      {formatCurrency(parseFloat(booking.total_amount || 0), booking.currency)}
                     </p>
                     <span
                       className={`text-xs px-2 py-1 rounded ${
@@ -187,7 +187,7 @@ const DashboardPage = () => {
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400'
                       }`}
                     >
-                      {booking.status}
+                      {booking.status_display || booking.status}
                     </span>
                   </div>
                 </div>
