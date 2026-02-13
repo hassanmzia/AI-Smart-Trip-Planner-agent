@@ -399,10 +399,10 @@ docker-compose exec backend python manage.py migrate
 docker-compose exec backend python manage.py createsuperuser
 
 # 8. Access the application
-# Frontend: http://172.168.1.95:3090
-# API:      http://172.168.1.95:8109/api/
-# Admin:    http://172.168.1.95:8109/admin/
-# API Docs: http://172.168.1.95:8109/api/docs/
+# Frontend: http://108.48.39.238:3090
+# API:      http://108.48.39.238:8109/api/
+# Admin:    http://108.48.39.238:8109/admin/
+# API Docs: http://108.48.39.238:8109/api/docs/
 ```
 
 #### Option 2: Using Make Commands
@@ -495,7 +495,7 @@ npm run dev  # Starts on port 3090
 # Django
 SECRET_KEY=your-secret-key-here
 DEBUG=True  # Set to False in production
-ALLOWED_HOSTS=172.168.1.95,localhost,backend
+ALLOWED_HOSTS=108.48.39.238,localhost,backend
 
 # Database
 DATABASE_URL=postgresql://travel_admin:password@postgres:5432/travel_agent_db
@@ -507,7 +507,7 @@ REDIS_URL=redis://:password@redis:6384/0
 CELERY_BROKER_URL=amqp://user:password@rabbitmq:5673/
 
 # CORS
-CORS_ALLOWED_ORIGINS=http://172.168.1.95:3090,http://localhost:3090
+CORS_ALLOWED_ORIGINS=http://108.48.39.238:3090,http://localhost:3090
 
 # API Keys
 OPENAI_API_KEY=sk-...
@@ -533,9 +533,9 @@ JWT_EXPIRATION_DELTA=3600
 **Frontend** (`.env`):
 
 ```bash
-REACT_APP_API_URL=http://172.168.1.95:8109
-REACT_APP_WS_URL=ws://172.168.1.95:8109/ws
-REACT_APP_MCP_URL=http://172.168.1.95:8107
+REACT_APP_API_URL=http://108.48.39.238:8109
+REACT_APP_WS_URL=ws://108.48.39.238:8109/ws
+REACT_APP_MCP_URL=http://108.48.39.238:8107
 PORT=3090
 ```
 
@@ -547,7 +547,7 @@ PORT=3090
 
 1. **Search Flights**:
    ```
-   Navigate to: http://172.168.1.95:3090/flights
+   Navigate to: http://108.48.39.238:3090/flights
    Enter: Origin (e.g., LAX), Destination (e.g., JFK)
    Dates: Departure and return dates
    Click: Search Flights
@@ -555,14 +555,14 @@ PORT=3090
 
 2. **Search Hotels**:
    ```
-   Navigate to: http://172.168.1.95:3090/hotels
+   Navigate to: http://108.48.39.238:3090/hotels
    Enter: Location, Check-in, Check-out dates
    Click: Search Hotels
    ```
 
 3. **AI-Powered Planning**:
    ```
-   Navigate to: http://172.168.1.95:3090/ai-planner
+   Navigate to: http://108.48.39.238:3090/ai-planner
    Enter: Origin, Destination, Dates, Budget
    Click: Plan My Trip
    AI agents will:
@@ -587,7 +587,7 @@ PORT=3090
 
 ```bash
 # Register
-curl -X POST http://172.168.1.95:8109/api/auth/register/ \
+curl -X POST http://108.48.39.238:8109/api/auth/register/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -597,7 +597,7 @@ curl -X POST http://172.168.1.95:8109/api/auth/register/ \
   }'
 
 # Login
-curl -X POST http://172.168.1.95:8109/api/auth/token/ \
+curl -X POST http://108.48.39.238:8109/api/auth/token/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -614,21 +614,21 @@ curl -X POST http://172.168.1.95:8109/api/auth/token/ \
 #### Flight Search
 
 ```bash
-curl -X GET "http://172.168.1.95:8109/api/flights/search/?origin=LAX&destination=JFK&departure_date=2026-06-01" \
+curl -X GET "http://108.48.39.238:8109/api/flights/search/?origin=LAX&destination=JFK&departure_date=2026-06-01" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 #### Hotel Search
 
 ```bash
-curl -X GET "http://172.168.1.95:8109/api/hotels/search/?location=New%20York&check_in=2026-06-01&check_out=2026-06-05" \
+curl -X GET "http://108.48.39.238:8109/api/hotels/search/?location=New%20York&check_in=2026-06-01&check_out=2026-06-05" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 #### AI Agent Execution
 
 ```bash
-curl -X POST http://172.168.1.95:8109/api/agents/execute/ \
+curl -X POST http://108.48.39.238:8109/api/agents/execute/ \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -869,8 +869,8 @@ python backend/manage.py test apps.agents.tests.test_workflows
 
 ### Interactive Documentation
 
-- **Swagger UI**: http://172.168.1.95:8109/api/docs/
-- **ReDoc**: http://172.168.1.95:8109/api/redoc/
+- **Swagger UI**: http://108.48.39.238:8109/api/docs/
+- **ReDoc**: http://108.48.39.238:8109/api/redoc/
 
 ### Key Endpoints
 
@@ -947,7 +947,7 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 
 # Example
 curl -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc..." \
-  http://172.168.1.95:8109/api/bookings/
+  http://108.48.39.238:8109/api/bookings/
 ```
 
 ### API Examples
@@ -957,7 +957,7 @@ curl -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGc..." \
 
 ```bash
 # 1. Register user
-curl -X POST http://172.168.1.95:8109/api/auth/register/ \
+curl -X POST http://108.48.39.238:8109/api/auth/register/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com",
@@ -967,7 +967,7 @@ curl -X POST http://172.168.1.95:8109/api/auth/register/ \
   }'
 
 # 2. Login
-TOKEN=$(curl -X POST http://172.168.1.95:8109/api/auth/token/ \
+TOKEN=$(curl -X POST http://108.48.39.238:8109/api/auth/token/ \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com",
@@ -975,15 +975,15 @@ TOKEN=$(curl -X POST http://172.168.1.95:8109/api/auth/token/ \
   }' | jq -r '.access')
 
 # 3. Search flights
-curl -X GET "http://172.168.1.95:8109/api/flights/search/?origin=LAX&destination=JFK&departure_date=2026-08-01&adults=2" \
+curl -X GET "http://108.48.39.238:8109/api/flights/search/?origin=LAX&destination=JFK&departure_date=2026-08-01&adults=2" \
   -H "Authorization: Bearer $TOKEN"
 
 # 4. Search hotels
-curl -X GET "http://172.168.1.95:8109/api/hotels/search/?location=New%20York&check_in=2026-08-01&check_out=2026-08-05&adults=2" \
+curl -X GET "http://108.48.39.238:8109/api/hotels/search/?location=New%20York&check_in=2026-08-01&check_out=2026-08-05&adults=2" \
   -H "Authorization: Bearer $TOKEN"
 
 # 5. Create booking
-BOOKING_ID=$(curl -X POST http://172.168.1.95:8109/api/bookings/ \
+BOOKING_ID=$(curl -X POST http://108.48.39.238:8109/api/bookings/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -996,7 +996,7 @@ BOOKING_ID=$(curl -X POST http://172.168.1.95:8109/api/bookings/ \
   }' | jq -r '.id')
 
 # 6. Process payment
-curl -X POST http://172.168.1.95:8109/api/payments/ \
+curl -X POST http://108.48.39.238:8109/api/payments/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -1006,7 +1006,7 @@ curl -X POST http://172.168.1.95:8109/api/payments/ \
   }'
 
 # 7. Get booking confirmation
-curl -X GET "http://172.168.1.95:8109/api/bookings/$BOOKING_ID/" \
+curl -X GET "http://108.48.39.238:8109/api/bookings/$BOOKING_ID/" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -1287,7 +1287,7 @@ docker-compose restart celery-worker celery-beat
 
 # Check RabbitMQ
 docker-compose logs rabbitmq
-open http://172.168.1.95:15673  # RabbitMQ management UI
+open http://108.48.39.238:15673  # RabbitMQ management UI
 ```
 
 </details>
@@ -1316,7 +1316,7 @@ docker-compose exec backend python manage.py showmigrations
 
 ```bash
 # Backend health
-curl http://172.168.1.95:8109/api/health
+curl http://108.48.39.238:8109/api/health
 
 # Expected response:
 {
@@ -1327,10 +1327,10 @@ curl http://172.168.1.95:8109/api/health
 }
 
 # MCP Server health
-curl http://172.168.1.95:8107/health
+curl http://108.48.39.238:8107/health
 
 # RabbitMQ Management UI
-open http://172.168.1.95:15673
+open http://108.48.39.238:15673
 # Default credentials: guest / guest
 ```
 

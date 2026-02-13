@@ -87,8 +87,8 @@ services:
       REDIS_URL: "redis://:redis_secure_pass_2026@redis:6384/0"
       RABBITMQ_URL: "amqp://travel_mq:mq_secure_pass_2026@rabbitmq:5673/"
       CELERY_BROKER_URL: "amqp://travel_mq:mq_secure_pass_2026@rabbitmq:5673/"
-      ALLOWED_HOSTS: "172.168.1.95,localhost,backend"
-      CORS_ALLOWED_ORIGINS: "http://172.168.1.95:3090,http://localhost:3090"
+      ALLOWED_HOSTS: "108.48.39.238,localhost,backend"
+      CORS_ALLOWED_ORIGINS: "http://108.48.39.238:3090,http://localhost:3090"
     depends_on:
       postgres:
         condition: service_healthy
@@ -185,17 +185,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: "http://172.168.1.95:8109"
-        VITE_WS_URL: "ws://172.168.1.95:8109/ws"
-        VITE_MCP_URL: "http://172.168.1.95:8107"
+        VITE_API_URL: "http://108.48.39.238:8109"
+        VITE_WS_URL: "ws://108.48.39.238:8109/ws"
+        VITE_MCP_URL: "http://108.48.39.238:8107"
     container_name: travel-agent-frontend
     ports:
       - "3090:3090"  # Main site port as requested
     environment:
       NODE_ENV: "production"
-      VITE_API_URL: "http://172.168.1.95:8109"
-      VITE_WS_URL: "ws://172.168.1.95:8109/ws"
-      VITE_MCP_URL: "http://172.168.1.95:8107"
+      VITE_API_URL: "http://108.48.39.238:8109"
+      VITE_WS_URL: "ws://108.48.39.238:8109/ws"
+      VITE_MCP_URL: "http://108.48.39.238:8107"
       PORT: "3090"
     volumes:
       - ./frontend:/app

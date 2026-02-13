@@ -214,7 +214,7 @@ class TestBookingService:
 
 ### Your Admin Panel
 ```
-http://172.168.1.95:8109/admin/payments/payment/
+http://108.48.39.238:8109/admin/payments/payment/
 ```
 Filter by `gateway_name = 'stripe'` and `status = 'completed'`
 

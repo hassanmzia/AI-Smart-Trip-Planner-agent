@@ -98,7 +98,7 @@ OPENAI_LLM = LLM(
 
 
 ##OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://108.48.39.238:12434")
-#OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://172.168.1.95:12434")
+#OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://108.48.39.238:12434")
 ##OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral-nemo:latest")
 
 #LOCAL_LLM = LLM(
@@ -113,7 +113,7 @@ OPENAI_LLM = LLM(
 
 #LOCAL_LLM = LLM(
 #    model="ollama/llama3.2",      # e.g., "ollama/llama3.1:8b-instruct"
-#    base_url="172.168.1.95:12434",    # local Ollama endpoint
+#    base_url="108.48.39.238:12434",    # local Ollama endpoint
 #    temperature=0.2,
 #    timeout=60,
 #)

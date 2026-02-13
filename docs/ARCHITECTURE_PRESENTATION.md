@@ -474,7 +474,7 @@ POST   /api/bookings/            - Create booking
 POST   /api/payments/            - Process payment
 ```
 
-**Access**: http://172.168.1.95:8109/api/docs
+**Access**: http://108.48.39.238:8109/api/docs
 
 ---
 
@@ -501,8 +501,8 @@ docker-compose exec backend python manage.py migrate
 docker-compose exec backend python manage.py createsuperuser
 
 # 6. Access application
-# Frontend: http://172.168.1.95:3090
-# Admin:    http://172.168.1.95:8109/admin
+# Frontend: http://108.48.39.238:3090
+# Admin:    http://108.48.39.238:8109/admin
 ```
 
 ### Development Tools
@@ -669,7 +669,7 @@ docker-compose exec backend python manage.py createsuperuser
 7. **Dashboard** - User bookings & trips
 8. **Admin Panel** - Django admin interface
 
-*Capture actual screenshots from http://172.168.1.95:3090*
+*Capture actual screenshots from http://108.48.39.238:3090*
 
 ---
 
@@ -724,7 +724,7 @@ docker-compose exec backend python manage.py createsuperuser
 - Pros: Full control, privacy
 - Cons: Maintenance burden
 
-**Current Setup**: Local Docker environment (172.168.1.95)
+**Current Setup**: Local Docker environment (108.48.39.238)
 
 ---
 
@@ -761,7 +761,7 @@ docker-compose exec backend python manage.py createsuperuser
 **Technical Contact**:
 - GitHub: [Repository Link]
 - Documentation: `/docs` folder
-- API Docs: http://172.168.1.95:8109/api/docs
+- API Docs: http://108.48.39.238:8109/api/docs
 
 **Key Resources**:
 - `README.md` - Setup guide
