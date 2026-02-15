@@ -66,7 +66,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      network: host
     container_name: travel-agent-backend
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     command: >
       sh -c "python manage.py makemigrations --noinput &&
              python manage.py migrate &&
@@ -111,7 +115,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      network: host
     container_name: travel-agent-celery-worker
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     command: celery -A travel_agent worker -l info --concurrency=4
     volumes:
       - ./backend:/app
@@ -139,7 +147,11 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      network: host
     container_name: travel-agent-celery-beat
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     command: celery -A travel_agent beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - ./backend:/app
@@ -167,7 +179,11 @@ services:
     build:
       context: ./mcp-server
       dockerfile: Dockerfile
+      network: host
     container_name: travel-agent-mcp-server
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     expose:
       - "8107"
     environment:
@@ -184,11 +200,15 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      network: host
       args:
         VITE_API_URL: "https://demo.eminencetechsolutions.com:3090"
         VITE_WS_URL: "wss://demo.eminencetechsolutions.com:3090/ws"
         VITE_MCP_URL: "https://demo.eminencetechsolutions.com:3090/mcp"
     container_name: travel-agent-frontend
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     expose:
       - "3090"
     environment:

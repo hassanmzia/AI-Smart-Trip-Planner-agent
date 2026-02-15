@@ -1,0 +1,13 @@
+# BuildKit daemon configuration
+# Fixes metadata loading timeouts when pulling from Docker Hub
+# Usage: docker buildx create --use --name travel-builder --config ./buildkitd.toml
+
+[worker.oci]
+  max-parallelism = 4
+
+# Configure Docker Hub with mirrors and extended timeouts
+[registry."docker.io"]
+  mirrors = ["mirror.gcr.io"]
+
+[registry."registry-1.docker.io"]
+  mirrors = ["mirror.gcr.io"]
