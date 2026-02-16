@@ -15,71 +15,90 @@ logger = logging.getLogger(__name__)
 def check_price_alerts(self):
     """
     Check for flight price changes and send alerts to users.
-    Runs periodically to monitor price drops for tracked flights.
+    Runs periodically to monitor price drops for tracked routes.
     """
     try:
         from .models import PriceAlert, Flight
 
         logger.info("Starting price alert check")
 
-        # Get all active price alerts
+        # Get all active price alerts (status='active' and not expired)
         active_alerts = PriceAlert.objects.filter(
-            is_active=True,
+            status='active',
+            expiry_date__gte=timezone.now().date(),
             user__is_active=True
-        ).select_related('flight', 'user')
+        ).select_related('user')
 
+        alerts_checked = 0
         alerts_triggered = 0
 
         for alert in active_alerts:
             try:
-                # Fetch current flight price
-                current_price = alert.flight.current_price
+                alerts_checked += 1
 
-                # Check if price has dropped below target
-                if current_price and current_price <= alert.target_price:
-                    # Send notification
+                # Find the cheapest matching flight for this alert's route
+                flight_qs = Flight.objects.filter(
+                    origin_airport=alert.origin_airport,
+                    destination_airport=alert.destination_airport,
+                    departure_time__date=alert.departure_date,
+                    travel_class=alert.travel_class,
+                    status='scheduled',
+                )
+                if alert.preferred_airlines:
+                    flight_qs = flight_qs.filter(
+                        airline_code__in=alert.preferred_airlines
+                    )
+                cheapest_flight = flight_qs.order_by('base_price').first()
+
+                if not cheapest_flight:
+                    continue
+
+                current_price = cheapest_flight.base_price
+
+                # Update the alert's price tracking via the model method
+                alert.check_price(current_price)
+
+                # Check if the alert was triggered (status changed to 'triggered')
+                if alert.status == 'triggered':
+                    # Send in-app notification
                     from apps.notifications.models import Notification
 
                     Notification.objects.create(
                         user=alert.user,
                         notification_type='price_alert',
-                        title=f'Price Alert: {alert.flight.airline} {alert.flight.flight_number}',
+                        title=f'Price Alert: {alert.origin_airport} to {alert.destination_airport}',
                         message=f'Price dropped to ${current_price}! Your target was ${alert.target_price}.',
-                        data={
-                            'flight_id': alert.flight.id,
-                            'old_price': float(alert.initial_price),
-                            'new_price': float(current_price),
-                            'target_price': float(alert.target_price)
+                        metadata={
+                            'alert_id': alert.id,
+                            'current_price': float(current_price),
+                            'target_price': float(alert.target_price),
+                            'origin': alert.origin_airport,
+                            'destination': alert.destination_airport,
                         }
                     )
 
-                    # Send email notification
-                    if alert.user.email_notifications_enabled:
+                    # Send email notification if enabled on the alert
+                    if alert.email_notification:
                         send_mail(
-                            subject=f'Price Alert: Flight to {alert.flight.destination}',
-                            message=f'Great news! The price for your tracked flight has dropped to ${current_price}.',
+                            subject=f'Price Alert: Flight from {alert.origin_airport} to {alert.destination_airport}',
+                            message=f'Great news! The price for your tracked route has dropped to ${current_price}.',
                             from_email=settings.DEFAULT_FROM_EMAIL,
                             recipient_list=[alert.user.email],
                             fail_silently=True
                         )
 
-                    # Mark alert as triggered
-                    alert.is_active = False
-                    alert.triggered_at = timezone.now()
-                    alert.save()
-
                     alerts_triggered += 1
-                    logger.info(f"Price alert triggered for user {alert.user.id}, flight {alert.flight.id}")
+                    logger.info(f"Price alert triggered for user {alert.user.id}, alert {alert.id}")
 
             except Exception as e:
                 logger.error(f"Error processing price alert {alert.id}: {str(e)}")
                 continue
 
-        logger.info(f"Price alert check completed. {alerts_triggered} alerts triggered out of {active_alerts.count()} checked.")
+        logger.info(f"Price alert check completed. {alerts_triggered} alerts triggered out of {alerts_checked} checked.")
 
         return {
             'status': 'success',
-            'alerts_checked': active_alerts.count(),
+            'alerts_checked': alerts_checked,
             'alerts_triggered': alerts_triggered
         }
 
@@ -151,7 +170,7 @@ def update_flight_status(self, flight_id=None):
                             notification_type='flight_status',
                             title=f'Flight Status Update: {flight.flight_number}',
                             message=f'Status changed from {old_status} to {flight.status}',
-                            data={
+                            metadata={
                                 'flight_id': flight.id,
                                 'booking_id': booking.id,
                                 'old_status': old_status,
