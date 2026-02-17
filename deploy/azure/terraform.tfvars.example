@@ -1,0 +1,36 @@
+# =============================================================================
+# Azure Terraform Variables - Copy to terraform.tfvars and fill in values
+# =============================================================================
+
+azure_location = "East US"
+environment    = "production"
+
+# Domain
+domain_name = "trip-planner.example.com"
+
+# AKS
+kubernetes_version = "1.29"
+
+# Node Pools
+general_node_vm_size   = "Standard_D2s_v3"
+general_node_min_count = 2
+general_node_max_count = 6
+
+worker_node_vm_size   = "Standard_D4s_v3"
+worker_node_min_count = 1
+worker_node_max_count = 5
+
+# PostgreSQL
+postgres_sku        = "B_Standard_B2s"
+postgres_storage_mb = 32768
+postgres_password   = "your-secure-postgres-password"
+
+# Redis
+redis_capacity = 1
+redis_family   = "C"
+redis_sku      = "Standard"
+
+# API Keys (use terraform.tfvars or environment variables)
+openai_api_key    = ""
+serp_api_key      = ""
+stripe_secret_key = ""

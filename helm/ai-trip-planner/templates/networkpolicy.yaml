@@ -1,0 +1,111 @@
+{{- if .Values.networkPolicy.enabled }}
+# Allow backend to reach PostgreSQL, Redis, RabbitMQ
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-backend
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: celery-worker
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.port }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgres
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgresql.port }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+      ports:
+        - protocol: TCP
+          port: {{ .Values.redis.port }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: rabbitmq
+      ports:
+        - protocol: TCP
+          port: {{ .Values.rabbitmq.port }}
+    # Allow DNS
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS outbound (API calls to OpenAI, SerpAPI, Stripe, etc.)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+---
+# Allow frontend to receive ingress traffic only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-frontend
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: nginx
+      ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.port }}
+---
+# Restrict database access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-postgres
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ai-trip-planner.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgresql.port }}
+{{- end }}

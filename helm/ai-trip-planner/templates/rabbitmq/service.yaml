@@ -1,0 +1,24 @@
+{{- if .Values.rabbitmq.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-rabbitmq
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.rabbitmq.port }}
+      targetPort: amqp
+      protocol: TCP
+      name: amqp
+    - port: {{ .Values.rabbitmq.managementPort }}
+      targetPort: management
+      protocol: TCP
+      name: management
+  selector:
+    {{- include "ai-trip-planner.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+{{- end }}

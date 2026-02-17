@@ -1,0 +1,20 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-postgres
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.postgresql.port }}
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "ai-trip-planner.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+{{- end }}

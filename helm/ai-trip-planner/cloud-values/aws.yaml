@@ -1,0 +1,176 @@
+# =============================================================================
+# AWS EKS Deployment Values
+# =============================================================================
+# Usage:
+#   helm install trip-planner ./helm/ai-trip-planner \
+#     -f helm/ai-trip-planner/cloud-values/aws.yaml \
+#     --namespace trip-planner --create-namespace \
+#     --set global.domain=your-domain.com \
+#     --set secrets.openaiApiKey=YOUR_KEY
+# =============================================================================
+
+global:
+  domain: "trip-planner.example.com"
+  imagePullPolicy: IfNotPresent
+  environment: production
+  # AWS EBS gp3 storage class
+  storageClass: gp3
+
+# Use AWS RDS for PostgreSQL (recommended for production)
+postgresql:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to your RDS endpoint
+    port: 5432
+    database: "travel_agent_db"
+    username: "travel_admin"
+
+# Use AWS ElastiCache for Redis (recommended for production)
+redis:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to your ElastiCache endpoint
+    port: 6379
+
+# Use Amazon MQ for RabbitMQ (recommended for production)
+rabbitmq:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to your Amazon MQ endpoint
+    port: 5671
+    username: "travel_mq"
+
+# Backend with autoscaling
+backend:
+  replicaCount: 2
+  workers: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - backend
+            topologyKey: topology.kubernetes.io/zone
+
+# Frontend with autoscaling
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+# MCP Server with autoscaling
+mcpServer:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# Celery workers with autoscaling
+celeryWorker:
+  replicaCount: 2
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Nginx not needed when using ALB
+nginx:
+  enabled: false
+
+# Service Account with IRSA (IAM Roles for Service Accounts)
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ""  # Set to your IAM role ARN
+
+# AWS ALB Ingress
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: ""  # Set to your ACM certificate ARN
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health/
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    alb.ingress.kubernetes.io/group.name: trip-planner
+    alb.ingress.kubernetes.io/subnets: ""  # Set to your public subnet IDs
+    alb.ingress.kubernetes.io/security-groups: ""  # Set to your security group IDs
+    alb.ingress.kubernetes.io/wafv2-acl-arn: ""  # Optional: WAF ACL ARN
+  tls:
+    enabled: true
+    secretName: ""
+    certManager:
+      enabled: false
+  hosts:
+    - host: trip-planner.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Monitoring with CloudWatch
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s

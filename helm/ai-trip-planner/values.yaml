@@ -1,0 +1,389 @@
+# =============================================================================
+# AI Smart Trip Planner - Default Helm Values
+# =============================================================================
+# This is the base values file. Override with cloud-specific values:
+#   helm install trip-planner ./helm/ai-trip-planner -f helm/ai-trip-planner/cloud-values/aws.yaml
+#   helm install trip-planner ./helm/ai-trip-planner -f helm/ai-trip-planner/cloud-values/azure.yaml
+#   helm install trip-planner ./helm/ai-trip-planner -f helm/ai-trip-planner/cloud-values/gcp.yaml
+#   helm install trip-planner ./helm/ai-trip-planner -f helm/ai-trip-planner/cloud-values/on-prem.yaml
+# =============================================================================
+
+global:
+  # -- Domain name for the application
+  domain: "trip-planner.local"
+  # -- Container image pull policy
+  imagePullPolicy: IfNotPresent
+  # -- Image pull secrets for private registries
+  imagePullSecrets: []
+  # -- Namespace to deploy into (uses Release namespace if empty)
+  namespace: ""
+  # -- Environment: production, staging, development
+  environment: production
+  # -- Storage class for persistent volumes (override per cloud)
+  storageClass: ""
+
+# =============================================================================
+# Secrets & Configuration
+# =============================================================================
+secrets:
+  # -- Django secret key (generate a strong key for production)
+  djangoSecretKey: "change-me-in-production-use-a-strong-random-key"
+  # -- OpenAI API key for AI agents
+  openaiApiKey: ""
+  # -- SerpAPI key for travel search
+  serpApiKey: ""
+  # -- Stripe secret key for payments
+  stripeSecretKey: ""
+  # -- Stripe publishable key
+  stripePublishableKey: ""
+  # -- Weather API key
+  weatherApiKey: ""
+  # -- PostgreSQL password
+  postgresPassword: "travel_secure_pass_2026"
+  # -- Redis password
+  redisPassword: "redis_secure_pass_2026"
+  # -- RabbitMQ password
+  rabbitmqPassword: "mq_secure_pass_2026"
+  # -- Use existing secret instead of creating one
+  existingSecret: ""
+
+# =============================================================================
+# Backend (Django + DRF + LangChain)
+# =============================================================================
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ai-trip-planner/backend
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  port: 8109
+  # -- Django settings
+  debug: false
+  allowedHosts: "*"
+  # -- Gunicorn workers
+  workers: 4
+  # -- Health check path
+  healthCheckPath: /api/health/
+  # -- Additional environment variables
+  extraEnv: []
+  # -- Node selector
+  nodeSelector: {}
+  # -- Tolerations
+  tolerations: []
+  # -- Affinity rules
+  affinity: {}
+  # -- Pod annotations
+  podAnnotations: {}
+  # -- Autoscaling configuration
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+# =============================================================================
+# Frontend (React + Vite + TypeScript)
+# =============================================================================
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ai-trip-planner/frontend
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  port: 3090
+  # -- API URL for frontend to connect to backend
+  apiUrl: ""
+  # -- WebSocket URL
+  wsUrl: ""
+  # -- MCP URL
+  mcpUrl: ""
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+# =============================================================================
+# MCP Server (FastAPI)
+# =============================================================================
+mcpServer:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ai-trip-planner/mcp-server
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  port: 8107
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# =============================================================================
+# Celery Worker
+# =============================================================================
+celeryWorker:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ai-trip-planner/backend
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  # -- Celery concurrency level
+  concurrency: 4
+  # -- Celery queues to consume from
+  queues: "default,celery"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# =============================================================================
+# Celery Beat (Scheduler)
+# =============================================================================
+celeryBeat:
+  enabled: true
+  image:
+    repository: ai-trip-planner/backend
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+# =============================================================================
+# Nginx (Reverse Proxy)
+# =============================================================================
+nginx:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ai-trip-planner/nginx
+    tag: "latest"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  port: 443
+  httpPort: 80
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+
+# =============================================================================
+# PostgreSQL
+# =============================================================================
+postgresql:
+  # -- Use built-in PostgreSQL (set to false for managed DB like RDS/CloudSQL)
+  enabled: true
+  # -- Use external/managed database
+  external:
+    enabled: false
+    host: ""
+    port: 5432
+    database: "travel_agent_db"
+    username: "travel_admin"
+    # password comes from secrets.postgresPassword
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  storage:
+    size: 20Gi
+    storageClass: ""
+  port: 5432
+  database: "travel_agent_db"
+  username: "travel_admin"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# Redis
+# =============================================================================
+redis:
+  # -- Use built-in Redis (set to false for managed Redis like ElastiCache)
+  enabled: true
+  # -- Use external/managed Redis
+  external:
+    enabled: false
+    host: ""
+    port: 6384
+    # password comes from secrets.redisPassword
+  image:
+    repository: redis
+    tag: "7-alpine"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage:
+    size: 5Gi
+    storageClass: ""
+  port: 6384
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# RabbitMQ
+# =============================================================================
+rabbitmq:
+  # -- Use built-in RabbitMQ (set to false for managed MQ like Amazon MQ)
+  enabled: true
+  # -- Use external/managed RabbitMQ
+  external:
+    enabled: false
+    host: ""
+    port: 5673
+    username: "travel_mq"
+    # password comes from secrets.rabbitmqPassword
+  image:
+    repository: rabbitmq
+    tag: "3.12-management-alpine"
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  storage:
+    size: 10Gi
+    storageClass: ""
+  port: 5673
+  managementPort: 15673
+  username: "travel_mq"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  enabled: true
+  # -- Ingress class: nginx, alb, azure-application-gateway, gce
+  className: nginx
+  annotations: {}
+  tls:
+    enabled: true
+    # -- Use existing TLS secret
+    secretName: ""
+    # -- Use cert-manager to auto-provision certificates
+    certManager:
+      enabled: false
+      issuer: letsencrypt-prod
+  hosts:
+    - host: trip-planner.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# =============================================================================
+# Service Account
+# =============================================================================
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# =============================================================================
+# Network Policies
+# =============================================================================
+networkPolicy:
+  enabled: false
+
+# =============================================================================
+# Pod Disruption Budgets
+# =============================================================================
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# =============================================================================
+# Monitoring & Observability
+# =============================================================================
+monitoring:
+  enabled: false
+  # -- Sentry DSN for error tracking
+  sentryDsn: ""
+  # -- Enable Prometheus metrics
+  prometheus:
+    enabled: false
+    serviceMonitor:
+      enabled: false
+      interval: 30s
+
+# =============================================================================
+# Jobs
+# =============================================================================
+migrations:
+  # -- Run Django migrations as a pre-install/pre-upgrade hook
+  enabled: true
+  backoffLimit: 3
+
+collectstatic:
+  # -- Run collectstatic as a pre-install/pre-upgrade hook
+  enabled: true

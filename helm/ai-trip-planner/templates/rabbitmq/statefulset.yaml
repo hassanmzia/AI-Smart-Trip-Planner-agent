@@ -1,0 +1,93 @@
+{{- if .Values.rabbitmq.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-rabbitmq
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+spec:
+  serviceName: {{ include "ai-trip-planner.fullname" . }}-rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rabbitmq
+  template:
+    metadata:
+      labels:
+        {{- include "ai-trip-planner.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: rabbitmq
+    spec:
+      {{- include "ai-trip-planner.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: rabbitmq
+          image: "{{ .Values.rabbitmq.image.repository }}:{{ .Values.rabbitmq.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: amqp
+              containerPort: {{ .Values.rabbitmq.port }}
+              protocol: TCP
+            - name: management
+              containerPort: {{ .Values.rabbitmq.managementPort }}
+              protocol: TCP
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: {{ .Values.rabbitmq.username | quote }}
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: rabbitmq-password
+            - name: RABBITMQ_NODE_PORT
+              value: {{ .Values.rabbitmq.port | quote }}
+            - name: RABBITMQ_MANAGEMENT_PORT
+              value: {{ .Values.rabbitmq.managementPort | quote }}
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - -q
+                - check_running
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.rabbitmq.resources | nindent 12 }}
+      {{- with .Values.rabbitmq.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.rabbitmq.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if or .Values.rabbitmq.storage.storageClass .Values.global.storageClass }}
+        storageClassName: {{ default .Values.global.storageClass .Values.rabbitmq.storage.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.rabbitmq.storage.size }}
+{{- end }}

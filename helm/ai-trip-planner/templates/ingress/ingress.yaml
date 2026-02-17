@@ -1,0 +1,83 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        {{- range .Values.ingress.hosts }}
+        - {{ .host | quote }}
+        {{- end }}
+      {{- if .Values.ingress.tls.secretName }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+      {{- else }}
+      secretName: {{ include "ai-trip-planner.fullname" . }}-tls
+      {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          # Backend API
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ai-trip-planner.fullname" $ }}-backend
+                port:
+                  number: {{ $.Values.backend.port }}
+          # Django Admin
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ai-trip-planner.fullname" $ }}-backend
+                port:
+                  number: {{ $.Values.backend.port }}
+          # WebSocket
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ai-trip-planner.fullname" $ }}-backend
+                port:
+                  number: {{ $.Values.backend.port }}
+          # MCP Server
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ai-trip-planner.fullname" $ }}-mcp-server
+                port:
+                  number: {{ $.Values.mcpServer.port }}
+          # Static files
+          - path: /static
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ai-trip-planner.fullname" $ }}-backend
+                port:
+                  number: {{ $.Values.backend.port }}
+          # Frontend (catch-all, must be last)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ai-trip-planner.fullname" $ }}-frontend
+                port:
+                  number: {{ $.Values.frontend.port }}
+    {{- end }}
+{{- end }}

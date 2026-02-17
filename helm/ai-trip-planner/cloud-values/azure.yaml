@@ -1,0 +1,179 @@
+# =============================================================================
+# Azure AKS Deployment Values
+# =============================================================================
+# Usage:
+#   helm install trip-planner ./helm/ai-trip-planner \
+#     -f helm/ai-trip-planner/cloud-values/azure.yaml \
+#     --namespace trip-planner --create-namespace \
+#     --set global.domain=your-domain.com \
+#     --set secrets.openaiApiKey=YOUR_KEY
+# =============================================================================
+
+global:
+  domain: "trip-planner.example.com"
+  imagePullPolicy: IfNotPresent
+  environment: production
+  # Azure managed-premium or managed-csi storage class
+  storageClass: managed-csi
+
+# Use Azure Database for PostgreSQL Flexible Server
+postgresql:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to your Azure PostgreSQL endpoint
+    port: 5432
+    database: "travel_agent_db"
+    username: "travel_admin"
+
+# Use Azure Cache for Redis
+redis:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to your Azure Redis endpoint
+    port: 6380  # Azure Redis uses SSL on 6380
+
+# Use in-cluster RabbitMQ (Azure doesn't have a managed RabbitMQ)
+# Alternatively use Azure Service Bus with a compatibility layer
+rabbitmq:
+  enabled: true
+  external:
+    enabled: false
+  storage:
+    size: 20Gi
+    storageClass: managed-csi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Backend with autoscaling
+backend:
+  replicaCount: 2
+  workers: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - backend
+            topologyKey: topology.kubernetes.io/zone
+
+# Frontend with autoscaling
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+# MCP Server with autoscaling
+mcpServer:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# Celery workers
+celeryWorker:
+  replicaCount: 2
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Nginx not needed when using Azure Application Gateway
+nginx:
+  enabled: false
+
+# Service Account with Azure Workload Identity
+serviceAccount:
+  create: true
+  annotations:
+    azure.workload.identity/client-id: ""  # Set to your Azure AD app client ID
+
+# Azure Application Gateway Ingress Controller (AGIC)
+ingress:
+  enabled: true
+  className: azure-application-gateway
+  annotations:
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/backend-protocol: "http"
+    appgw.ingress.kubernetes.io/request-timeout: "120"
+    appgw.ingress.kubernetes.io/connection-draining: "true"
+    appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    appgw.ingress.kubernetes.io/waf-policy-for-path: ""  # Optional: WAF policy resource ID
+    appgw.ingress.kubernetes.io/health-probe-path: /api/health/
+  tls:
+    enabled: true
+    secretName: ""
+    certManager:
+      enabled: true
+      issuer: letsencrypt-prod
+  hosts:
+    - host: trip-planner.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Monitoring with Azure Monitor
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s

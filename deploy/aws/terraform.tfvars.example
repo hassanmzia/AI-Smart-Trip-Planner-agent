@@ -1,0 +1,42 @@
+# =============================================================================
+# AWS Terraform Variables - Copy to terraform.tfvars and fill in values
+# =============================================================================
+
+aws_region  = "us-east-1"
+environment = "production"
+
+# Domain
+domain_name = "trip-planner.example.com"
+
+# EKS
+cluster_name       = "ai-trip-planner-eks"
+kubernetes_version = "1.29"
+
+# Node Groups
+general_node_instance_types = ["t3.large"]
+general_node_min_size       = 2
+general_node_max_size       = 6
+general_node_desired_size   = 3
+
+worker_node_instance_types = ["t3.xlarge"]
+worker_node_min_size       = 1
+worker_node_max_size       = 5
+worker_node_desired_size   = 2
+
+# RDS
+rds_instance_class        = "db.t3.medium"
+rds_allocated_storage     = 20
+rds_max_allocated_storage = 100
+
+# ElastiCache
+redis_node_type  = "cache.t3.medium"
+redis_auth_token = "your-redis-auth-token-here"
+
+# Amazon MQ
+mq_instance_type  = "mq.t3.micro"
+rabbitmq_password = "your-rabbitmq-password-here"
+
+# API Keys (use terraform.tfvars or environment variables)
+openai_api_key    = ""
+serp_api_key      = ""
+stripe_secret_key = ""
