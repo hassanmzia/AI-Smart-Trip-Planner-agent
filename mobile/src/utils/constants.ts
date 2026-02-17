@@ -6,30 +6,35 @@ import { Platform } from 'react-native';
 
 // ─── API Configuration ──────────────────────────────────────────────────────
 
-// Default to local development. Override via environment or build config.
-export const API_BASE_URL = __DEV__
-  ? Platform.select({
-      android: 'http://10.0.2.2:8109', // Android emulator
-      ios: 'http://localhost:8109',
-      default: 'http://localhost:8109',
-    })!
-  : 'https://demo.eminencetechsolutions.com:3090';
+// Production backend URL (your live Linux server).
+// Set USE_LOCAL_BACKEND=true below to use localhost during development.
+const USE_LOCAL_BACKEND = false;
 
-export const WS_BASE_URL = __DEV__
-  ? Platform.select({
-      android: 'ws://10.0.2.2:8109/ws',
-      ios: 'ws://localhost:8109/ws',
-      default: 'ws://localhost:8109/ws',
-    })!
-  : 'wss://demo.eminencetechsolutions.com:3090/ws';
+const PRODUCTION_URL = 'https://demo.eminencetechsolutions.com:3090';
+const PRODUCTION_WS  = 'wss://demo.eminencetechsolutions.com:3090/ws';
+const PRODUCTION_MCP = 'https://demo.eminencetechsolutions.com:3090/mcp';
 
-export const MCP_BASE_URL = __DEV__
-  ? Platform.select({
-      android: 'http://10.0.2.2:8107',
-      ios: 'http://localhost:8107',
-      default: 'http://localhost:8107',
-    })!
-  : 'https://demo.eminencetechsolutions.com:3090/mcp';
+const LOCAL_API = Platform.select({
+  android: 'http://10.0.2.2:8109', // Android emulator localhost alias
+  ios: 'http://localhost:8109',
+  default: 'http://localhost:8109',
+})!;
+
+const LOCAL_WS = Platform.select({
+  android: 'ws://10.0.2.2:8109/ws',
+  ios: 'ws://localhost:8109/ws',
+  default: 'ws://localhost:8109/ws',
+})!;
+
+const LOCAL_MCP = Platform.select({
+  android: 'http://10.0.2.2:8107',
+  ios: 'http://localhost:8107',
+  default: 'http://localhost:8107',
+})!;
+
+export const API_BASE_URL = (__DEV__ && USE_LOCAL_BACKEND) ? LOCAL_API : PRODUCTION_URL;
+export const WS_BASE_URL  = (__DEV__ && USE_LOCAL_BACKEND) ? LOCAL_WS  : PRODUCTION_WS;
+export const MCP_BASE_URL = (__DEV__ && USE_LOCAL_BACKEND) ? LOCAL_MCP : PRODUCTION_MCP;
 
 // ─── API Endpoints ──────────────────────────────────────────────────────────
 
