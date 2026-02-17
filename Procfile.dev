@@ -1,0 +1,12 @@
+# =============================================================================
+# Procfile.dev - Minimal setup (SQLite, no RabbitMQ, no Celery)
+# =============================================================================
+# For quick local development without any infrastructure dependencies.
+#
+# Usage:
+#   export DATABASE_URL=sqlite:///db.sqlite3
+#   honcho start -f Procfile.dev
+# =============================================================================
+
+backend: cd backend && ./venv/bin/python manage.py runserver 0.0.0.0:8109
+frontend: cd frontend && npm run dev

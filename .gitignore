@@ -94,3 +94,13 @@ tmp/
 *.pem
 *.key
 *.crt
+
+# Local venv PID files
+.pids/
+
+# Terraform
+deploy/**/.terraform/
+deploy/**/.terraform.lock.hcl
+deploy/**/terraform.tfstate*
+deploy/**/terraform.tfvars
+deploy/**/*.tfplan

@@ -93,13 +93,27 @@ WSGI_APPLICATION = 'travel_agent.wsgi.application'
 ASGI_APPLICATION = 'travel_agent.asgi.application'
 
 # Database
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL',
-            'postgresql://travel_admin:travel_secure_pass_2026@localhost:5438/travel_agent_db'),
-        conn_max_age=600
-    )
-}
+# Supports PostgreSQL (production/Docker) and SQLite (quick local dev).
+# Set DATABASE_URL=sqlite:///db.sqlite3 for SQLite mode.
+_database_url = os.environ.get(
+    'DATABASE_URL',
+    'postgresql://travel_admin:travel_secure_pass_2026@localhost:5438/travel_agent_db'
+)
+
+if _database_url.startswith('sqlite'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / _database_url.replace('sqlite:///', ''),
+        }
+    }
+else:
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=_database_url,
+            conn_max_age=600
+        )
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -168,14 +182,23 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 CORS_ALLOW_CREDENTIALS = True
 
 # Channels (WebSocket)
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [os.environ.get('REDIS_URL', 'redis://:redis_secure_pass_2026@localhost:6384/1')],
+# Falls back to in-memory channel layer if REDIS_URL is empty (local dev without Redis)
+_redis_url = os.environ.get('REDIS_URL', 'redis://:redis_secure_pass_2026@localhost:6384/1')
+if _redis_url:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_redis_url],
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
 
 # Celery Configuration
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'amqp://travel_mq:mq_secure_pass_2026@localhost:5673/')
@@ -187,12 +210,20 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-# Redis Cache
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.environ.get('REDIS_URL', 'redis://:redis_secure_pass_2026@localhost:6384/0'),
+# Cache - Redis in production, local memory fallback for dev without Redis
+_cache_url = os.environ.get('REDIS_URL', 'redis://:redis_secure_pass_2026@localhost:6384/0')
+if _cache_url:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': _cache_url,
+        }
     }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        }
 }
 
 # API Keys
