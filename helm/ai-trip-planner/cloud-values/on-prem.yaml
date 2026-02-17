@@ -1,0 +1,149 @@
+# =============================================================================
+# On-Premises Kubernetes Deployment Values
+# =============================================================================
+# Usage:
+#   helm install trip-planner ./helm/ai-trip-planner \
+#     -f helm/ai-trip-planner/cloud-values/on-prem.yaml \
+#     --namespace trip-planner --create-namespace
+# =============================================================================
+
+global:
+  domain: "trip-planner.local"
+  imagePullPolicy: IfNotPresent
+  environment: production
+  # Use your on-prem storage class (e.g., local-path, longhorn, rook-ceph)
+  storageClass: ""
+
+# All infrastructure runs in-cluster for on-prem
+postgresql:
+  enabled: true
+  external:
+    enabled: false
+  storage:
+    size: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+redis:
+  enabled: true
+  external:
+    enabled: false
+  storage:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+rabbitmq:
+  enabled: true
+  external:
+    enabled: false
+  storage:
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Backend
+backend:
+  replicaCount: 2
+  workers: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: false
+
+# Frontend
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# MCP Server
+mcpServer:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Celery
+celeryWorker:
+  replicaCount: 2
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+# Nginx reverse proxy handles SSL termination
+nginx:
+  enabled: true
+  replicaCount: 2
+
+# Use NGINX ingress controller (common for on-prem)
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/websocket-services: "{{ include \"ai-trip-planner.fullname\" . }}-backend"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    enabled: true
+    # Provide your own TLS secret or use cert-manager
+    secretName: ""
+    certManager:
+      enabled: false
+      issuer: letsencrypt-prod
+  hosts:
+    - host: trip-planner.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Pod Disruption Budgets for HA
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Network policies for security
+networkPolicy:
+  enabled: true
+
+# Monitoring
+monitoring:
+  enabled: false
+  prometheus:
+    enabled: false

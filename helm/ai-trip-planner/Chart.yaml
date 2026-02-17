@@ -1,0 +1,37 @@
+apiVersion: v2
+name: ai-trip-planner
+description: AI Smart Trip Planner - Multi-Agent Travel Planning Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - travel
+  - ai
+  - trip-planner
+  - langchain
+  - django
+  - react
+maintainers:
+  - name: AI Trip Planner Team
+home: https://github.com/hassanmzia/AI-Smart-Trip-Planner-agent
+sources:
+  - https://github.com/hassanmzia/AI-Smart-Trip-Planner-agent
+dependencies:
+  - name: postgresql
+    version: "~15.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.external.enabled
+    tags:
+      - managed-db
+  - name: redis
+    version: "~18.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.external.enabled
+    tags:
+      - managed-cache
+  - name: rabbitmq
+    version: "~14.0"
+    repository: https://charts.bitnami.com/bitnami
+    condition: rabbitmq.external.enabled
+    tags:
+      - managed-mq

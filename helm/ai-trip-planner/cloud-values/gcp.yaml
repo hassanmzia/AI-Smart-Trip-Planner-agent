@@ -1,0 +1,174 @@
+# =============================================================================
+# GCP GKE Deployment Values
+# =============================================================================
+# Usage:
+#   helm install trip-planner ./helm/ai-trip-planner \
+#     -f helm/ai-trip-planner/cloud-values/gcp.yaml \
+#     --namespace trip-planner --create-namespace \
+#     --set global.domain=your-domain.com \
+#     --set secrets.openaiApiKey=YOUR_KEY
+# =============================================================================
+
+global:
+  domain: "trip-planner.example.com"
+  imagePullPolicy: IfNotPresent
+  environment: production
+  # GCP standard storage class
+  storageClass: standard-rwo
+
+# Use Cloud SQL for PostgreSQL
+postgresql:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to Cloud SQL private IP or use Cloud SQL Auth Proxy
+    port: 5432
+    database: "travel_agent_db"
+    username: "travel_admin"
+
+# Use Memorystore for Redis
+redis:
+  enabled: false
+  external:
+    enabled: true
+    host: ""  # Set to your Memorystore endpoint
+    port: 6379
+
+# Use in-cluster RabbitMQ (or CloudAMQP as a managed alternative)
+rabbitmq:
+  enabled: true
+  external:
+    enabled: false
+  storage:
+    size: 20Gi
+    storageClass: standard-rwo
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Backend with autoscaling
+backend:
+  replicaCount: 2
+  workers: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                    - backend
+            topologyKey: topology.kubernetes.io/zone
+
+# Frontend with autoscaling
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+# MCP Server with autoscaling
+mcpServer:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# Celery workers
+celeryWorker:
+  replicaCount: 2
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# Nginx not needed when using GCE ingress
+nginx:
+  enabled: false
+
+# Service Account with Workload Identity
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: ""  # Set to your GCP service account email
+
+# GCE Ingress (Google Cloud Load Balancer)
+ingress:
+  enabled: true
+  className: gce
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: ""  # Set to your reserved static IP name
+    networking.gke.io/managed-certificates: trip-planner-cert
+    kubernetes.io/ingress.class: gce
+    networking.gke.io/v1beta1.FrontendConfig: trip-planner-frontend-config
+  tls:
+    enabled: true
+    secretName: ""
+    certManager:
+      enabled: false  # Use GKE managed certificates instead
+  hosts:
+    - host: trip-planner.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Pod Disruption Budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Monitoring with Google Cloud Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s

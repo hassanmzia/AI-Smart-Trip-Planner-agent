@@ -1,0 +1,112 @@
+{{- if .Values.celeryWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-celery-worker
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: celery-worker
+spec:
+  {{- if not .Values.celeryWorker.autoscaling.enabled }}
+  replicas: {{ .Values.celeryWorker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: celery-worker
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- with .Values.celeryWorker.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "ai-trip-planner.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: celery-worker
+    spec:
+      {{- include "ai-trip-planner.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "ai-trip-planner.serviceAccountName" . }}
+      initContainers:
+        - name: wait-for-rabbitmq
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z {{ include "ai-trip-planner.rabbitmqHost" . }} {{ include "ai-trip-planner.rabbitmqPort" . }}; do echo waiting for rabbitmq; sleep 2; done']
+        - name: wait-for-backend
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z {{ include "ai-trip-planner.fullname" . }}-backend {{ .Values.backend.port }}; do echo waiting for backend; sleep 2; done']
+      containers:
+        - name: celery-worker
+          image: "{{ .Values.celeryWorker.image.repository }}:{{ .Values.celeryWorker.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "ai-trip-planner.fullname" . }}-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: postgres-password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: redis-password
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: rabbitmq-password
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: django-secret-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: openai-api-key
+            - name: DATABASE_URL
+              value: {{ include "ai-trip-planner.databaseUrl" . | quote }}
+            - name: REDIS_URL
+              value: {{ include "ai-trip-planner.redisUrl" . | quote }}
+            - name: RABBITMQ_URL
+              value: {{ include "ai-trip-planner.rabbitmqUrl" . | quote }}
+          command:
+            - celery
+            - -A
+            - travel_agent
+            - worker
+            - --loglevel=info
+            - --concurrency={{ .Values.celeryWorker.concurrency }}
+            - -Q
+            - {{ .Values.celeryWorker.queues }}
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - travel_agent
+                - inspect
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 10
+          resources:
+            {{- toYaml .Values.celeryWorker.resources | nindent 12 }}
+      {{- with .Values.celeryWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.celeryWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.celeryWorker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

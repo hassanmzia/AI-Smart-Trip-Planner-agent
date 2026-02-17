@@ -1,0 +1,102 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-redis
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  serviceName: {{ include "ai-trip-planner.fullname" . }}-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "ai-trip-planner.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      {{- include "ai-trip-planner.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redis.port }}
+              protocol: TCP
+          command:
+            - redis-server
+            - --port
+            - {{ .Values.redis.port | quote }}
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - "256mb"
+            - --maxmemory-policy
+            - "allkeys-lru"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: redis-password
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -p
+                - {{ .Values.redis.port | quote }}
+                - -a
+                - $(REDIS_PASSWORD)
+                - ping
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - -p
+                - {{ .Values.redis.port | quote }}
+                - -a
+                - $(REDIS_PASSWORD)
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+      {{- with .Values.redis.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redis.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.redis.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if or .Values.redis.storage.storageClass .Values.global.storageClass }}
+        storageClassName: {{ default .Values.global.storageClass .Values.redis.storage.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.redis.storage.size }}
+{{- end }}

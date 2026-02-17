@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-config
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+data:
+  # Django settings
+  DJANGO_DEBUG: {{ .Values.backend.debug | quote }}
+  DJANGO_ALLOWED_HOSTS: {{ .Values.backend.allowedHosts | quote }}
+  DJANGO_SETTINGS_MODULE: "travel_agent.settings"
+
+  # Database
+  POSTGRES_HOST: {{ include "ai-trip-planner.postgresHost" . | quote }}
+  POSTGRES_PORT: {{ include "ai-trip-planner.postgresPort" . | quote }}
+  POSTGRES_DB: {{ include "ai-trip-planner.postgresDatabase" . | quote }}
+  POSTGRES_USER: {{ include "ai-trip-planner.postgresUsername" . | quote }}
+
+  # Redis
+  REDIS_HOST: {{ include "ai-trip-planner.redisHost" . | quote }}
+  REDIS_PORT: {{ include "ai-trip-planner.redisPort" . | quote }}
+
+  # RabbitMQ
+  RABBITMQ_HOST: {{ include "ai-trip-planner.rabbitmqHost" . | quote }}
+  RABBITMQ_PORT: {{ include "ai-trip-planner.rabbitmqPort" . | quote }}
+  RABBITMQ_USER: {{ include "ai-trip-planner.rabbitmqUsername" . | quote }}
+
+  # Backend
+  BACKEND_PORT: {{ .Values.backend.port | quote }}
+  GUNICORN_WORKERS: {{ .Values.backend.workers | quote }}
+
+  # MCP Server
+  MCP_PORT: {{ .Values.mcpServer.port | quote }}
+
+  # Frontend
+  VITE_API_URL: {{ default (printf "https://%s" .Values.global.domain) .Values.frontend.apiUrl | quote }}
+  VITE_WS_URL: {{ default (printf "wss://%s/ws" .Values.global.domain) .Values.frontend.wsUrl | quote }}
+  VITE_MCP_URL: {{ default (printf "https://%s/mcp" .Values.global.domain) .Values.frontend.mcpUrl | quote }}
+
+  # Celery
+  CELERY_CONCURRENCY: {{ .Values.celeryWorker.concurrency | quote }}
+  CELERY_QUEUES: {{ .Values.celeryWorker.queues | quote }}
+
+  # Monitoring
+  {{- if .Values.monitoring.sentryDsn }}
+  SENTRY_DSN: {{ .Values.monitoring.sentryDsn | quote }}
+  {{- end }}
+
+  # Environment
+  ENVIRONMENT: {{ .Values.global.environment | quote }}

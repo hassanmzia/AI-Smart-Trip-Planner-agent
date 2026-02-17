@@ -1,0 +1,84 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-nginx
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+spec:
+  replicas: {{ .Values.nginx.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nginx
+  template:
+    metadata:
+      annotations:
+        checksum/nginx-config: {{ include (print $.Template.BasePath "/nginx/configmap.yaml") . | sha256sum }}
+        {{- with .Values.nginx.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "ai-trip-planner.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: nginx
+    spec:
+      {{- include "ai-trip-planner.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "ai-trip-planner.serviceAccountName" . }}
+      containers:
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: https
+              containerPort: 443
+              protocol: TCP
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            - name: tls-certs
+              mountPath: /etc/nginx/certs
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.nginx.resources | nindent 12 }}
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: {{ include "ai-trip-planner.fullname" . }}-nginx-config
+        - name: tls-certs
+          secret:
+            {{- if .Values.ingress.tls.secretName }}
+            secretName: {{ .Values.ingress.tls.secretName }}
+            {{- else }}
+            secretName: {{ include "ai-trip-planner.fullname" . }}-tls
+            {{- end }}
+      {{- with .Values.nginx.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nginx.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nginx.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

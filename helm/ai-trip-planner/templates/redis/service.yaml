@@ -1,0 +1,20 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-redis
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redis.port }}
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "ai-trip-planner.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+{{- end }}

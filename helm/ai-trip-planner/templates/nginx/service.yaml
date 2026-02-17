@@ -1,0 +1,24 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-nginx
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+spec:
+  type: ClusterIP
+  ports:
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ai-trip-planner.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nginx
+{{- end }}

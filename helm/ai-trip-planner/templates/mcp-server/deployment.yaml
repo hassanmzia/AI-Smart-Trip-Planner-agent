@@ -1,0 +1,97 @@
+{{- if .Values.mcpServer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-mcp-server
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  {{- if not .Values.mcpServer.autoscaling.enabled }}
+  replicas: {{ .Values.mcpServer.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "ai-trip-planner.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: mcp-server
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        {{- with .Values.mcpServer.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "ai-trip-planner.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: mcp-server
+    spec:
+      {{- include "ai-trip-planner.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "ai-trip-planner.serviceAccountName" . }}
+      initContainers:
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z {{ include "ai-trip-planner.redisHost" . }} {{ include "ai-trip-planner.redisPort" . }}; do echo waiting for redis; sleep 2; done']
+      containers:
+        - name: mcp-server
+          image: "{{ .Values.mcpServer.image.repository }}:{{ .Values.mcpServer.image.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.mcpServer.port }}
+              protocol: TCP
+          env:
+            - name: MCP_PORT
+              value: {{ .Values.mcpServer.port | quote }}
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "ai-trip-planner.fullname" . }}-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "ai-trip-planner.fullname" . }}-config
+                  key: REDIS_PORT
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: redis-password
+            - name: BACKEND_URL
+              value: "http://{{ include "ai-trip-planner.fullname" . }}-backend:{{ .Values.backend.port }}"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ai-trip-planner.secretName" . }}
+                  key: openai-api-key
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+          resources:
+            {{- toYaml .Values.mcpServer.resources | nindent 12 }}
+      {{- with .Values.mcpServer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mcpServer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mcpServer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

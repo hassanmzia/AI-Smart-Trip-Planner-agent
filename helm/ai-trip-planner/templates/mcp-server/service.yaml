@@ -1,0 +1,20 @@
+{{- if .Values.mcpServer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-mcp-server
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.mcpServer.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "ai-trip-planner.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+{{- end }}

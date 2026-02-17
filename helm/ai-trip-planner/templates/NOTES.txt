@@ -1,0 +1,54 @@
+========================================================================
+  AI Smart Trip Planner has been deployed!
+========================================================================
+
+{{- if .Values.ingress.enabled }}
+Application URL(s):
+{{- range .Values.ingress.hosts }}
+  {{- if $.Values.ingress.tls.enabled }}
+  https://{{ .host }}
+  {{- else }}
+  http://{{ .host }}
+  {{- end }}
+{{- end }}
+{{- else }}
+Get the application URL by running:
+  export POD_NAME=$(kubectl get pods --namespace {{ include "ai-trip-planner.namespace" . }} -l "app.kubernetes.io/name={{ include "ai-trip-planner.name" . }},app.kubernetes.io/component=nginx" -o jsonpath="{.items[0].metadata.name}")
+  kubectl --namespace {{ include "ai-trip-planner.namespace" . }} port-forward $POD_NAME 3090:443
+  Then open: https://localhost:3090
+{{- end }}
+
+Services deployed:
+  - Backend (Django + LangChain):  {{ .Values.backend.replicaCount }} replica(s)
+  - Frontend (React + Vite):       {{ .Values.frontend.replicaCount }} replica(s)
+  - MCP Server (FastAPI):           {{ .Values.mcpServer.replicaCount }} replica(s)
+  - Celery Worker:                  {{ .Values.celeryWorker.replicaCount }} replica(s)
+  - Celery Beat:                    1 replica
+{{- if .Values.postgresql.enabled }}
+  - PostgreSQL:                     Built-in (StatefulSet)
+{{- else }}
+  - PostgreSQL:                     External ({{ .Values.postgresql.external.host }})
+{{- end }}
+{{- if .Values.redis.enabled }}
+  - Redis:                          Built-in (StatefulSet)
+{{- else }}
+  - Redis:                          External ({{ .Values.redis.external.host }})
+{{- end }}
+{{- if .Values.rabbitmq.enabled }}
+  - RabbitMQ:                       Built-in (StatefulSet)
+{{- else }}
+  - RabbitMQ:                       External ({{ .Values.rabbitmq.external.host }})
+{{- end }}
+
+{{- if not .Values.secrets.openaiApiKey }}
+
+WARNING: OpenAI API key is not set. AI agents will not function.
+  Set it with: --set secrets.openaiApiKey=YOUR_KEY
+{{- end }}
+
+To check deployment status:
+  kubectl get pods --namespace {{ include "ai-trip-planner.namespace" . }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+To view logs:
+  kubectl logs --namespace {{ include "ai-trip-planner.namespace" . }} -l app.kubernetes.io/component=backend -f
+========================================================================

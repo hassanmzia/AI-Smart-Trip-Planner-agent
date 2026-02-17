@@ -1,0 +1,24 @@
+{{- if and .Values.mcpServer.enabled .Values.mcpServer.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ai-trip-planner.fullname" . }}-mcp-server
+  namespace: {{ include "ai-trip-planner.namespace" . }}
+  labels:
+    {{- include "ai-trip-planner.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp-server
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ai-trip-planner.fullname" . }}-mcp-server
+  minReplicas: {{ .Values.mcpServer.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.mcpServer.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.mcpServer.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}

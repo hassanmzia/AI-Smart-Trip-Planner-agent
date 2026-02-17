@@ -1,0 +1,32 @@
+# =============================================================================
+# GCP Terraform Variables - Copy to terraform.tfvars and fill in values
+# =============================================================================
+
+gcp_project_id = "your-gcp-project-id"
+gcp_region     = "us-central1"
+environment    = "production"
+
+# Domain
+domain_name = "trip-planner.example.com"
+
+# GKE Node Pools
+general_node_machine_type = "e2-standard-2"
+general_node_min_count    = 2
+general_node_max_count    = 6
+
+worker_node_machine_type = "e2-standard-4"
+worker_node_min_count    = 1
+worker_node_max_count    = 5
+
+# Cloud SQL
+cloudsql_tier      = "db-custom-2-4096"
+cloudsql_disk_size = 20
+postgres_password  = "your-secure-postgres-password"
+
+# Memorystore Redis
+redis_memory_size_gb = 1
+
+# API Keys (use terraform.tfvars or environment variables)
+openai_api_key    = ""
+serp_api_key      = ""
+stripe_secret_key = ""
