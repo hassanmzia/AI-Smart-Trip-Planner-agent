@@ -1,6 +1,7 @@
 .PHONY: help build up down logs clean restart shell-backend shell-frontend migrate createsuperuser test
 .PHONY: local local-setup local-stop local-backend local-frontend local-mcp local-services local-sqlite
 .PHONY: hf-deploy
+.PHONY: mobile-install mobile-ios mobile-android mobile-start mobile-clean
 
 help:
 	@echo "AI Travel Agent - Make Commands"
@@ -27,6 +28,13 @@ help:
 	@echo "  make local-mcp          - Run only MCP server locally"
 	@echo "  make local-services     - Start only infra (Postgres/Redis/RabbitMQ) via Docker"
 	@echo "  make local-sqlite       - Run locally with SQLite (no infra needed)"
+	@echo ""
+	@echo "=== Mobile App Commands ==="
+	@echo "  make mobile-install     - Install mobile dependencies"
+	@echo "  make mobile-ios         - Build and run iOS app"
+	@echo "  make mobile-android     - Build and run Android app"
+	@echo "  make mobile-start       - Start Metro bundler"
+	@echo "  make mobile-clean       - Clean mobile build artifacts"
 	@echo ""
 	@echo "=== Deployment Commands ==="
 	@echo "  make hf-deploy SPACE=user/name  - Deploy to Hugging Face Spaces"
@@ -121,3 +129,21 @@ hf-deploy:
 		exit 1; \
 	fi
 	./deploy/huggingface/deploy.sh $(SPACE)
+
+# =============================================================================
+# Mobile App Commands (React Native)
+# =============================================================================
+mobile-install:
+	cd mobile && npm install
+
+mobile-ios: mobile-install
+	cd mobile && npx pod-install ios && npx react-native run-ios
+
+mobile-android: mobile-install
+	cd mobile && npx react-native run-android
+
+mobile-start:
+	cd mobile && npx react-native start
+
+mobile-clean:
+	cd mobile && rm -rf node_modules ios/Pods ios/build android/app/build
